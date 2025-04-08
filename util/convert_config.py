@@ -1,6 +1,8 @@
 # https://www.perplexity.ai/search/can-you-create-a-python-script-NGJIlr0fR_SeE7Eipelljg
 
+import os
 import re
+import pathlib
 
 def process_texture_line(line):
     # Split the line into main part and optional comment
@@ -26,9 +28,32 @@ def process_texture_line(line):
     if len(param_list) < 4:
         param_list.append('1.0')  # Default SCALE value
 
+    # Modify the diffuse texture if texture type is '0'
+    if texture_type in ['0', 'c']:
+        filename = modify_diffuse_texture(filename)
+        param_list[-1] = str(float(param_list[-1]) / 4)
+
     # Reconstruct the line with updated values
     updated_line = f'texture {texture_type} {filename} {" ".join(param_list)}{comment}'
     return updated_line
+
+def modify_diffuse_texture(filename):
+    """
+    Modifies the diffuse texture (texture type 0) by:
+      - Prepending "harry/upscale/" to the filestem.
+      - Appending "_diffuse" to the filestem.
+      - Appending ".png" suffix to the filestem.
+    """
+    # Remove quotes for easier processing
+    if filename.startswith('"') and filename.endswith('"'):
+        filename = filename[1:-1]
+
+    # Extract directory, filestem, and extension
+    path = pathlib.Path(filename)
+    new_path = "harry/upscale/" / path.parent / f"{path.stem}_diffuse.png"
+
+    # Return the modified filename enclosed in quotes
+    return f'"{new_path.as_posix()}"'
 
 def process_config_file(input_file, output_file):
     with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
@@ -52,3 +77,7 @@ for p in pathlib.Path(".").iterdir():
     process_config_file(p.name, t.name)
     p.unlink()
     t.rename(p.name)
+
+User = "harry"
+d = pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten\packages\base'
+def copyover(pkg): shutil.copy(pathlib.Path(pkg + ".cfg").resolve(), d)
