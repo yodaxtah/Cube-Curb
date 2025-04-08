@@ -55,6 +55,31 @@ def modify_diffuse_texture(filename):
     # Return the modified filename enclosed in quotes
     return f'"{new_path.as_posix()}"'
 
+def process_exec_line(line):
+    # Split the line into main part and optional comment
+    parts = line.split('//', 1)  # Split at the first occurrence of '//'
+    main_part = parts[0].strip()  # Main part of the line (before the comment)
+    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
+
+    # Match the texture command
+    match = re.match(r'exec\s+(\S+)(.*)', main_part)
+    if not match:
+        return line  # Return the line unchanged if it's not a texture command
+
+    filename, _ = match.groups()
+
+    # Ensure filename is enclosed in double quotes
+    if not filename.startswith('"') and not filename.endswith('"'):
+        filename = f'"{filename}"'
+
+    # Modify the diffuse texture if texture type is '0'
+    if "harry/upscale/" not in filename and filename.startswith("\"packages/"):
+        filename = "\"packages/harry/upscale/" + filename[len("\"packages/"):]
+
+    # Reconstruct the line with updated values
+    updated_line = f'exec {filename}{comment}'
+    return updated_line
+
 def process_config_file(input_file, output_file):
     with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
         for line in infile:
@@ -62,6 +87,9 @@ def process_config_file(input_file, output_file):
             if stripped_line.startswith('texture'):
                 processed_line = process_texture_line(stripped_line)
                 outfile.write(processed_line + '\n')
+            elif stripped_line.startswith("exec"):
+                processed_line = process_exec_line(stripped_line)
+                outfile.write(processed_line + "\n")
             else:
                 outfile.write(line)
 
