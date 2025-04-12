@@ -41,14 +41,19 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
     if rotation != None:
         param_list[0] = rotation
     if x_offset != None:
-        param_list[1] = str(float(x_offset) * 4) if upscaled else x_offset
+        param_list[1] = str(float(x_offset) * 4) if upscaled else str(float(x_offset))
     if y_offset != None:
-        param_list[2] = str(float(y_offset) * 4) if upscaled else y_offset
+        param_list[2] = str(float(y_offset) * 4) if upscaled else str(float(y_offset))
     if scale != None:
-        param_list[3] = str(float(scale) / 4) if upscaled else scale
+        param_list[3] = str(float(scale) / 4) if upscaled else str(float(scale))
     
     for i in range(4):
-        param_list[i] = p[:-2] if (p := param_list[i])[-2:] == ".0" else p
+        param = param_list[i]
+        if param[-2:] == ".0":
+            param = param[:-2]
+        if "." in param:
+            param = str(float(param)) # why is this necessary?
+        param_list[i] = param
 
     # Reconstruct the line with updated values
     updated_line = f'texture {texture_type} {filename} {" ".join(param_list)}{comment}'
@@ -156,7 +161,7 @@ def process_texoffset_line(line):
 
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None):
     new_buffer = ""
-    print(rotation, x_offset, y_offset, scale, repr(buffer))
+    # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
         modified_line, _ = process_texture_line(line, False, rotation, x_offset, y_offset, scale)
         new_buffer += modified_line + "\n"
@@ -192,6 +197,8 @@ def process_lines(lines):
         elif stripped_line.startswith("texoffset "):
             updated_line, x_offset, y_offset = process_texoffset_line(stripped_line)
             buffer += "// " + updated_line + "\n"
+        elif stripped_line.startswith("texcolor "):
+            buffer += line
         elif stripped_line == "":
             buffer += "\n"
         else:
@@ -205,55 +212,16 @@ def process_lines(lines):
                 processed_line = process_exec_line(stripped_line)
                 output_lines += processed_line + "\n"
             else:
-                output_lines += line + "\n" # write to buffer until next texture is read: buffer += line + "\n"
-    output_lines += buffer
+                output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
+    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale)
     return output_lines
 
 
 def process_config_file(input_file, output_file):
     with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
-        buffer = ""
-        rotation = None
-        x_offset = None
-        y_offset = None
-        scale = None
-        for line in infile:
-            stripped_line = line.strip()
-            if stripped_line.startswith('texture '):
-                processed_line, new_texture = process_texture_line(stripped_line)
-                processed_line += "\n"
-                if new_texture:
-                    outfile.write(modify_buffer(buffer, rotation, x_offset, y_offset, scale))
-                    rotation = None
-                    x_offset = None
-                    y_offset = None
-                    scale = None
-                    buffer = ""
-                buffer += processed_line
-            elif stripped_line.startswith("texrotate "):
-                updated_line, rotation = process_texrotate_line(stripped_line)
-                buffer += "// " + updated_line + "\n"
-            elif stripped_line.startswith("texscale "):
-                updated_line, scale = process_texscale_line(stripped_line)
-                buffer += "// " + updated_line + "\n"
-            elif stripped_line.startswith("texoffset "):
-                updated_line, x_offset, y_offset = process_texoffset_line(stripped_line)
-                buffer += "// " + updated_line + "\n"
-            elif stripped_line == "":
-                buffer += "\n"
-            else:
-                outfile.write(modify_buffer(buffer, rotation, x_offset, y_offset, scale))
-                rotation = None
-                x_offset = None
-                y_offset = None
-                scale = None
-                buffer = ""
-                if stripped_line.startswith("exec "):
-                    processed_line = process_exec_line(stripped_line)
-                    outfile.write(processed_line + "\n")
-                else:
-                    outfile.write(line) # write to buffer until next texture is read: buffer += line + "\n"
-        outfile.write(buffer)
+        lines = infile.readlines()
+        output = process_lines(lines)
+        outfile.write(output)
 
 # if __name__ == '__main__':
 #     input_file = 'input.cfg'  # Replace with your input file name
@@ -263,7 +231,7 @@ def process_config_file(input_file, output_file):
 def process_directory(directory: str|pathlib.Path = ".", recursive = True):
     for p in pathlib.Path(directory).iterdir():
         p = pathlib.Path(p)
-        if p.is_dir():
+        if p.is_dir() and recursive:
             process_directory(p, recursive)
         else:
             t = p.parent / pathlib.Path("temp.cfg")
@@ -273,21 +241,58 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
             t.rename(p.as_posix())
 
 User = "harry"
-d = pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten\packages\base'
 
-def copyover(pkg: pathlib.Path|str):
-    pkg = pathlib.Path(pkg)
-    if pkg.suffix == ".cfg":
-        shutil.copy(pathlib.Path(pkg).resolve(), d)
+def to_packages_path(t: "user|system|repo"):
+    match t:
+        case "user":
+            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten\packages'
+        case "system":
+            return pathlib.Path(r'C:\Program Files (x86)\Sauerbraten\packages')
+        case "repo":
+            return pathlib.Path(r'.')
+
+def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_path("user")):
+    cfg = pathlib.Path(cfg)
+    destination = pathlib.Path(destination)
+    assert cfg.is_file()
+    if cfg.suffix == ".cfg":
+        shutil.copy(pathlib.Path(cfg).resolve(), destination.resolve())
     else:
-        shutil.copy(pathlib.Path(pkg + ".cfg").resolve(), d)
+        print(cfg)
+        shutil.copy(pathlib.Path(cfg + ".cfg").resolve(), destination.resolve())
 
-def takeback(pkg: pathlib.Path|str):
-    pkg = pathlib.Path(pkg)
-    if pkg.suffix == ".cfg":
-        (d / pkg).unlink()
+def takeback(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_path("user")):
+    cfg = pathlib.Path(cfg)
+    destination = pathlib.Path(destination)
+    if cfg.suffix == ".cfg":
+        (destination / cfg).unlink()
     else:
-        (d / pkg + ".cfg").unlink()
+        (destination / cfg + ".cfg").unlink()
 
-def co(pkg): return copyover(pkg)
-def tb(pkg): return takeback(pkg)
+def copyover_directory(source: str|pathlib.Path = to_packages_path("repo"), destination: pathlib.Path|str = to_packages_path("user"), recursive = True, directory = None):
+    source = source.resolve()
+    destination = destination.resolve()
+    if directory == None:
+        directory = source
+    for p in pathlib.Path(source).iterdir():
+        p = pathlib.Path(p)
+        if p.is_dir() and recursive:
+            copyover_directory(p, destination, recursive, directory)
+        elif p.suffix == ".cfg":
+            print(p.as_posix())
+            d = (destination / p.relative_to(directory)).parent
+            d.mkdir(parents=True, exist_ok=True)
+            copyover(p, d)
+
+
+def setup():
+    copyover_directory(to_packages_path("system"), to_packages_path("repo"), True)
+    # 2. remove fonts
+    # 3. replace divf 1 3 with 0.3333333333
+    process_directory()
+    # 5. fir harry/upscale/<mix
+    # 6. remove models
+
+
+def cob(cfg): return copyover(cfg + "/base")
+def tbb(cfg): return takeback(cfg + "/base")
