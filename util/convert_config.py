@@ -70,12 +70,17 @@ def modify_diffuse_texture(filename):
     if filename.startswith('"') and filename.endswith('"'):
         filename = filename[1:-1]
 
+    prefix = ""
+    if len(filename) > 0 and filename[0] == "<":
+        prefix = filename[0:filename.find(">")+1]
+        filename = filename[filename.find(">")+1:]
+
     # Extract directory, filestem, and extension
     path = pathlib.Path(filename)
     new_path = "harry/upscale" / path.parent / f"{path.stem}_diffuse.png"
 
     # Return the modified filename enclosed in quotes
-    return f'"{new_path.as_posix()}"'
+    return f'"{prefix + new_path.as_posix()}"'
 
 def process_exec_line(line):
     # Split the line into main part and optional comment
@@ -288,10 +293,17 @@ def copyover_directory(source: str|pathlib.Path = to_packages_path("repo"), dest
 def setup():
     copyover_directory(to_packages_path("system"), to_packages_path("repo"), True)
     # 2. remove fonts
+    """
+    >>> R = pathlib.Path("./fonts/default.cfg")
+    >>> R.unlink()
+    """
     # 3. replace divf 1 3 with 0.3333333333
     process_directory()
-    # 5. fir harry/upscale/<mix
-    # 6. remove models
+    # 5. remove models
+    """
+    >>> Q = list(pathlib.Path(".").glob("./models/**/*.cfg"))
+    >>> for q in Q: q.unlink()
+    """
 
 
 def cob(cfg): return copyover(cfg + "/base")
