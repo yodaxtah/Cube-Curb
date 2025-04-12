@@ -260,13 +260,17 @@ def process_config_file(input_file, output_file):
 #     output_file = 'output.cfg'  # Replace with your desired output file name
 #     process_config_file(input_file, output_file)
 
-for p in pathlib.Path(".").iterdir():
-    p = pathlib.Path(p)
-    t = pathlib.Path("temp.cfg")
-    print(p.name)
-    process_config_file(p.name, t.name)
-    p.unlink()
-    t.rename(p.name)
+def process_directory(directory: str|pathlib.Path = ".", recursive = True):
+    for p in pathlib.Path(directory).iterdir():
+        p = pathlib.Path(p)
+        if p.is_dir():
+            process_directory(p, recursive)
+        else:
+            t = p.parent / pathlib.Path("temp.cfg")
+            print(p.as_posix())
+            process_config_file(p.as_posix(), t.as_posix())
+            p.unlink()
+            t.rename(p.as_posix())
 
 User = "harry"
 d = pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten\packages\base'
