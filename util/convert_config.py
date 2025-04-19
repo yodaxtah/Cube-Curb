@@ -255,11 +255,18 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     return output_lines
 
 
-def process_config_file(input_file, output_file):
-    with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
-        lines = infile.readlines()
+def process_config_file(input_file_path: pathlib.Path|str, output_file_path: pathlib.Path|str):
+    lines = []
+    with open(input_file_path, "r") as file:
+        # lines = file.readlines()
+        while line := file.readline():
+            parts = line.split(";")
+            lines.append(parts[0])
+            for part in parts[1:]:
+                lines.append(part.lstrip())
+    with open(output_file_path, 'w') as file:
         output = process_lines(lines)
-        outfile.write(output)
+        file.write(output)
 
 # if __name__ == '__main__':
 #     input_file = 'input.cfg'  # Replace with your input file name
