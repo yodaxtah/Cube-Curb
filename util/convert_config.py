@@ -175,7 +175,8 @@ def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=Non
     return new_buffer
 
 
-def process_lines(lines):
+def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
+    inverse_texcoordscale = upscale_factor / texcoordscale
     buffer = ""
     output_lines = ""
     rotation = None
@@ -185,10 +186,10 @@ def process_lines(lines):
     for line in lines:
         stripped_line = line.strip()
         if stripped_line.startswith('texture '):
-            processed_line, new_texture = process_texture_line(stripped_line)
+            processed_line, new_texture = process_texture_line(stripped_line, inverse_texcoordscale=inverse_texcoordscale)
             processed_line += "\n"
             if new_texture:
-                output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale)
+                output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
                 rotation = None
                 x_offset = None
                 y_offset = None
@@ -209,7 +210,7 @@ def process_lines(lines):
         elif stripped_line == "":
             buffer += "\n"
         else:
-            output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale)
+            output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
             rotation = None
             x_offset = None
             y_offset = None
@@ -220,7 +221,7 @@ def process_lines(lines):
                 output_lines += processed_line + "\n"
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
-    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale)
+    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
     return output_lines
 
 
