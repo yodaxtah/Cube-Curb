@@ -19,7 +19,7 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
     # Match the texture command
     match = re.match(r'texture\s+(\w+)\s+(\S+)(.*)', main_part)
     if not match:
-        return line, False  # Return the line unchanged if it's not a texture command
+        return line, False, None  # Return the line unchanged if it's not a texture command
 
     texture_type, filename, params = match.groups()
 
@@ -62,7 +62,7 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
 
     # Reconstruct the line with updated values
     updated_line = f'texture {texture_type} {filename} {" ".join(param_list)}{comment}'
-    return updated_line, (texture_type in ['0', 'c'])
+    return updated_line, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
 
 def modify_diffuse_texture(filename):
     """
@@ -170,6 +170,8 @@ def process_texoffset_line(line):
     updated_line = f'texoffset {x_offset} {y_offset}'
     return updated_line, x_offset, y_offset
 
+def coordscale_parameter_line(scale):
+    return f"setshaderparam \"texcoordscale\" {scale}"
 
 def process_shader_line(line, texcoordscale):
     # Split the line into main part and optional comment
@@ -191,7 +193,7 @@ def process_shader_line(line, texcoordscale):
 
     next_line = ""
     if True: # shader_name in ["stdworld", "glowworld"]:
-        next_line = f"\nsetshaderparam \"texcoordscale\" {texcoordscale}"
+        next_line = "\n" + coordscale_parameter_line(texcoordscale)
     
     shader_name = f'"{shader_name}"'
 
@@ -202,7 +204,7 @@ def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=Non
     new_buffer = ""
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
-        modified_line, _ = process_texture_line(line, False, rotation, x_offset, y_offset, scale)
+        modified_line, _, _ = process_texture_line(line, False, rotation, x_offset, y_offset, scale)
         new_buffer += modified_line + "\n"
     return new_buffer
 
@@ -215,11 +217,13 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     x_offset = None
     y_offset = None
     scale = None
+    current_texcoordscale = texcoordscale
+    reset = False
+    shader_set = False
     for line in lines:
         stripped_line = line.strip()
         if stripped_line.startswith('texture '):
-            processed_line, new_texture = process_texture_line(stripped_line, inverse_texcoordscale=inverse_texcoordscale)
-            processed_line += "\n"
+            processed_line, new_texture, is_upscaled = process_texture_line(stripped_line, inverse_texcoordscale=inverse_texcoordscale)
             if new_texture:
                 output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
                 rotation = None
@@ -227,7 +231,17 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 y_offset = None
                 scale = None
                 buffer = ""
-            buffer += processed_line
+                if is_upscaled and current_texcoordscale != texcoordscale:
+                    current_texcoordscale = texcoordscale
+                    buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
+                elif not is_upscaled and current_texcoordscale == texcoordscale:
+                    current_texcoordscale = 1.0
+                    buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
+            if not shader_set:
+                shader_set = True
+                buffer += process_shader_line("setshader stdworld", texcoordscale) + "\n"
+                buffer += coordscale_parameter_line(texcoordscale) + "\n"
+            buffer += processed_line + "\n"
         elif stripped_line.startswith("texrotate "):
             updated_line, rotation = process_texrotate_line(stripped_line)
             buffer += "// " + updated_line + "\n"
@@ -239,9 +253,6 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             buffer += "// " + updated_line + "\n"
         elif stripped_line.startswith("texcolor "):
             buffer += line
-        elif stripped_line.startswith("setshader "):
-            updated_line = process_shader_line(stripped_line, texcoordscale)
-            buffer += updated_line + "\n"
         elif stripped_line == "":
             buffer += "\n"
         else:
@@ -251,12 +262,26 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             y_offset = None
             scale = None
             buffer = ""
-            if stripped_line.startswith("exec "):
+            if stripped_line.startswith("setshader "):
+                shader_set = False
+                current_texcoordscale = texcoordscale
+                updated_line = process_shader_line(stripped_line, texcoordscale)
+                output_lines += updated_line + "\n"
+            elif stripped_line.startswith("texturereset"):
+                reset = True
+                shader_set = False
+                output_lines += line
+                output_lines += coordscale_parameter_line(texcoordscale) + "\n"
+            elif stripped_line.startswith("exec "):
                 processed_line = process_exec_line(stripped_line)
                 output_lines += processed_line + "\n"
+                output_lines += coordscale_parameter_line(current_texcoordscale) + "\n"
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
+    output_lines += coordscale_parameter_line(1.0) + "\n"
+    if not reset:
+        output_lines = coordscale_parameter_line(texcoordscale) + "\n" + output_lines
     return output_lines
 
 
