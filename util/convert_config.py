@@ -5,6 +5,11 @@ import re
 import pathlib
 import shutil
 
+def is_upscaled_texture_path(filename: str) -> bool:
+    return "harry" in filename \
+        and "upscale" in filename \
+        and "_diffuse" in filename
+
 def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Split the line into main part and optional comment
     parts = line.split('//', 1)  # Split at the first occurrence of '//'
@@ -31,13 +36,13 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
     if len(param_list) < 4:
         param_list.append('1.0')  # Default SCALE value
 
-    if upscale and texture_type in ['0', 'c'] and "_diffuse" not in filename:
+    if upscale and texture_type in ['0', 'c'] and not is_upscaled_texture_path(filename):
         filename = modify_diffuse_texture(filename)
         param_list[1] = str(float(param_list[1]) * inverse_texcoordscale)
         param_list[2] = str(float(param_list[2]) * inverse_texcoordscale)
         param_list[3] = str(float(param_list[3]) / inverse_texcoordscale)
 
-    upscaled = texture_type in ['0', 'c'] and "_diffuse" in filename
+    upscaled = texture_type in ['0', 'c'] and is_upscaled_texture_path(filename)
     if rotation != None:
         param_list[0] = rotation
     if x_offset != None:
