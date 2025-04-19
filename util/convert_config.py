@@ -231,16 +231,15 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 y_offset = None
                 scale = None
                 buffer = ""
+                if not shader_set:
+                    shader_set = True
+                    buffer += process_shader_line("setshader stdworld", texcoordscale) + "\n"
                 if is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
                     buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
                 elif not is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
                     buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
-            if not shader_set:
-                shader_set = True
-                buffer += process_shader_line("setshader stdworld", texcoordscale) + "\n"
-                buffer += coordscale_parameter_line(texcoordscale) + "\n"
             buffer += processed_line + "\n"
         elif stripped_line.startswith("texrotate "):
             updated_line, rotation = process_texrotate_line(stripped_line)
@@ -263,7 +262,7 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             scale = None
             buffer = ""
             if stripped_line.startswith("setshader "):
-                shader_set = False
+                shader_set = True
                 current_texcoordscale = texcoordscale
                 updated_line = process_shader_line(stripped_line, texcoordscale)
                 output_lines += updated_line + "\n"
