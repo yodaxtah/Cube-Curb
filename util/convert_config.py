@@ -166,7 +166,34 @@ def process_texoffset_line(line):
     return updated_line, x_offset, y_offset
 
 
-def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None):
+def process_shader_line(line, texcoordscale):
+    # Split the line into main part and optional comment
+    parts = line.split('//', 1)  # Split at the first occurrence of '//'
+    main_part = parts[0].strip()  # Main part of the line (before the comment)
+    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
+
+    match = re.match(r'setshader\s+(\S+)(.*)', main_part)
+    if not match:
+        return line  # Return the line unchanged if it's not a texture command
+
+    shader_name, _ = match.groups()
+
+    # Ensure shader_name is enclosed in double quotes
+    if shader_name.startswith('"'):
+        shader_name = shader_name[1:]
+    if shader_name.endswith('"'):
+        shader_name = shader_name[:-1]
+
+    next_line = ""
+    if True: # shader_name in ["stdworld", "glowworld"]:
+        next_line = f"\nsetshaderparam \"texcoordscale\" {texcoordscale}"
+    
+    shader_name = f'"{shader_name}"'
+
+    return f"setshader {shader_name}{comment}{next_line}"
+
+
+def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
     new_buffer = ""
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
@@ -207,6 +234,9 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             buffer += "// " + updated_line + "\n"
         elif stripped_line.startswith("texcolor "):
             buffer += line
+        elif stripped_line.startswith("setshader "):
+            updated_line = process_shader_line(stripped_line, texcoordscale)
+            buffer += updated_line + "\n"
         elif stripped_line == "":
             buffer += "\n"
         else:
