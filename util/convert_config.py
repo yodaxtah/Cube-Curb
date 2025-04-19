@@ -247,14 +247,23 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
 
 User = "harry"
 
-def to_packages_path(t: "user|system|repo"):
+def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
-            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten\packages'
+            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten'
         case "system":
-            return pathlib.Path(r'C:\Program Files (x86)\Sauerbraten\packages')
+            return pathlib.Path(r'C:\Program Files (x86)\Sauerbraten')
         case "repo":
             return pathlib.Path(r'.')
+
+def to_packages_path(t: "user|system|repo"):
+    return to_sauerbraten_path(t) / "packages"
+
+def to_packages_base_path(t: "user|system|repo"):
+    return to_sauerbraten_path(t) / "packages" / "base"
+
+def to_data_path(t: "user|system|repo"):
+    return to_sauerbraten_path(t) / "data"
 
 def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_path("user")):
     cfg = pathlib.Path(cfg)
