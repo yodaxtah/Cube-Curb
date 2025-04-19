@@ -79,7 +79,9 @@ def modify_diffuse_texture(filename):
     path = pathlib.Path(filename)
     new_path = "harry/upscale" / path.parent / f"{path.stem}_diffuse.png"
 
-    # Return the modified filename enclosed in quotes
+    file_path = to_packages_path("user") / new_path
+    if not file_path.is_file():
+        new_path = path
     return f'"{prefix + new_path.as_posix()}"'
 
 def process_exec_line(line):
