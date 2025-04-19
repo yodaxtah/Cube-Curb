@@ -5,7 +5,7 @@ import re
 import pathlib
 import shutil
 
-def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None):
+def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Split the line into main part and optional comment
     parts = line.split('//', 1)  # Split at the first occurrence of '//'
     main_part = parts[0].strip()  # Main part of the line (before the comment)
@@ -33,19 +33,19 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
 
     if upscale and texture_type in ['0', 'c'] and "_diffuse" not in filename:
         filename = modify_diffuse_texture(filename)
-        param_list[1] = str(float(param_list[1]) * 4)
-        param_list[2] = str(float(param_list[2]) * 4)
-        param_list[3] = str(float(param_list[3]) / 4)
+        param_list[1] = str(float(param_list[1]) * inverse_texcoordscale)
+        param_list[2] = str(float(param_list[2]) * inverse_texcoordscale)
+        param_list[3] = str(float(param_list[3]) / inverse_texcoordscale)
 
     upscaled = texture_type in ['0', 'c'] and "_diffuse" in filename
     if rotation != None:
         param_list[0] = rotation
     if x_offset != None:
-        param_list[1] = str(float(x_offset) * 4) if upscaled else str(float(x_offset))
+        param_list[1] = str(float(x_offset) * inverse_texcoordscale) if upscaled else str(float(x_offset))
     if y_offset != None:
-        param_list[2] = str(float(y_offset) * 4) if upscaled else str(float(y_offset))
+        param_list[2] = str(float(y_offset) * inverse_texcoordscale) if upscaled else str(float(y_offset))
     if scale != None:
-        param_list[3] = str(float(scale) / 4) if upscaled else str(float(scale))
+        param_list[3] = str(float(scale) / inverse_texcoordscale) if upscaled else str(float(scale))
     
     for i in range(4):
         param = param_list[i]
