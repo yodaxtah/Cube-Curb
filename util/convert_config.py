@@ -174,17 +174,20 @@ def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=Non
     new_buffer = ""
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
-        modified_line, _, _ = format_texture_code(line, False, rotation, x_offset, y_offset, scale)
-        new_buffer += modified_line + "\n"
+        indentation, code, comment = strip_line(line)
+        formatted, _, _ = format_texture_code(code, False, rotation, x_offset, y_offset, scale)
+        new_buffer += indentation + formatted + comment + "\n"
     return new_buffer
 
 
 def strip_line(line):
     parts = line.split('//', 1)
     code = parts[0].strip()
-    indentation = parts[0][:parts[0].find(code)]
+    indentation = parts[0] if code == "" else parts[0][:parts[0].find(code)]
     comment = f" // {parts[1].strip()}" if len(parts) > 1 else ""
-    if len(comment) == 3:
+    if code == "":
+        comment = comment[1:]
+    if comment == "// ":
         comment = "//"
     return indentation, code, comment
 
@@ -213,24 +216,24 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 buffer = ""
                 if not shader_set:
                     shader_set = True
-                    buffer += format_shader_code("setshader stdworld", texcoordscale) + "\n"
-                    buffer += format_coordscale_parameter(texcoordscale) + "\n"
+                    buffer += indentation + format_shader_code("setshader stdworld", texcoordscale) + "\n"
+                    buffer += indentation + format_coordscale_parameter(texcoordscale) + "\n"
                 if is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer += format_coordscale_parameter(current_texcoordscale) + "\n"
+                    buffer += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
                 elif not is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer += format_coordscale_parameter(current_texcoordscale) + "\n"
-            buffer += formatted + comment + "\n"
+                    buffer += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
+            buffer += indentation + formatted + comment + "\n"
         elif code.startswith("texrotate "):
             formatted, rotation = format_texrotate_line(code)
-            buffer += "// " + formatted + comment + "\n"
+            buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texscale "):
             formatted, scale = format_texscale_line(code)
-            buffer += "// " + formatted + comment + "\n"
+            buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texoffset "):
             formatted, x_offset, y_offset = format_texoffset_line(code)
-            buffer += "// " + formatted + comment + "\n"
+            buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texcolor "):
             buffer += line
         elif code == "":
@@ -246,17 +249,17 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 shader_set = True
                 current_texcoordscale = texcoordscale
                 formatted = format_shader_code(code, texcoordscale)
-                output_lines += formatted + comment + "\n"
-                output_lines += format_coordscale_parameter(texcoordscale) + "\n"
+                output_lines += indentation + formatted + comment + "\n"
+                output_lines += indentation + format_coordscale_parameter(texcoordscale) + "\n"
             elif code.startswith("texturereset"):
                 reset = True
                 shader_set = False
                 output_lines += line
-                output_lines += format_coordscale_parameter(texcoordscale) + "\n"
+                output_lines += indentation + format_coordscale_parameter(texcoordscale) + "\n"
             elif code.startswith("exec "):
                 formatted = format_exec_code(code)
-                output_lines += formatted + comment + "\n"
-                output_lines += format_coordscale_parameter(current_texcoordscale) + "\n"
+                output_lines += indentation + formatted + comment + "\n"
+                output_lines += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
