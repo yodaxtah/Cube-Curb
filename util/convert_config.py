@@ -12,11 +12,10 @@ def is_upscaled_texture_path(filename: str) -> bool:
 
 def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Match the texture command
-    match = re.match(r'texture\s+(\w+)\s+(\S+)(.*)', line)
-    if not match:
-        return line, False, None  # Return the line unchanged if it's not a texture command
-
-    texture_type, filename, params = match.groups()
+    if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
+        texture_type, filename, params = match.groups()
+    else:
+        return line, False, None
 
     # Ensure filename is enclosed in double quotes
     if not filename.startswith('"') and not filename.endswith('"'):
@@ -85,12 +84,10 @@ def modify_diffuse_texture(filename):
     return f'"{prefix + new_path.as_posix()}"'
 
 def format_exec_code(line):
-    # Match the texture command
-    match = re.match(r'exec\s+(\S+)(.*)', line)
-    if not match:
-        return line  # Return the line unchanged if it's not a texture command
-
-    filename, _ = match.groups()
+    if match := re.match(r"exec\s+(\S+)(.*)", line):
+        filename, _ = match.groups()
+    else:
+        return line
 
     # Ensure filename is enclosed in double quotes
     if not filename.startswith('"') and not filename.endswith('"'):
@@ -105,55 +102,46 @@ def format_exec_code(line):
     return formatted
 
 def format_texrotate_line(line):
-    # Match the texture command
-    match = re.match(r'texrotate\s+(\S+)(.*)', line)
-    if not match:
-        return line  # Return the line unchanged if it's not a texture command
-
-    rotation, _ = match.groups()
+    if match := re.match(r"texrotate\s+(\S+)(.*)", line):
+        rotation, _ = match.groups()
+    else:
+        return line
 
     # Reconstruct the line with updated values
     formatted = f'texrotate {rotation}'
     return formatted, rotation
 
 def format_texscale_line(line):
-    # Match the texture command
-    match = re.match(r'texscale\s+(\S+)(.*)', line)
-    if not match:
-        return line  # Return the line unchanged if it's not a texture command
-
-    scale, _ = match.groups()
+    if match := re.match(r"texscale\s+(\S+)(.*)", line):
+        scale, _ = match.groups()
+    else:
+        return line
 
     # Reconstruct the line with updated values
     formatted = f'texscale {scale}'
     return formatted, scale
 
 def format_texoffset_line(line):
-    # Match the texture command
-    match = re.match(r'texoffset\s+(\S+)\s+(\S+)(.*)', line)
-    if not match:
-        match = re.match(r'texoffset\s+(\S+)(.*)', line)
-        if not match:
-            return line  # Return the line unchanged if it's not a texture command
-        else:
-            x_offset, _ = match.groups()
-            y_offset = "0"
-    else:
+    if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", line):
         x_offset, y_offset, _ = match.groups()
+    elif match := re.match(r"texoffset\s+(\S+)(.*)", line):
+        x_offset, _ = match.groups()
+        y_offset = "0"
+    else:
+        return line
 
     # Reconstruct the line with updated values
-    formatted = f'texoffset {x_offset} {y_offset}'
+    formatted = f"texoffset {x_offset} {y_offset}"
     return formatted, x_offset, y_offset
 
 def format_coordscale_parameter(scale):
     return f"setshaderparam \"texcoordscale\" {scale}"
 
 def format_shader_code(line, texcoordscale):
-    match = re.match(r'setshader\s+(\S+)(.*)', line)
-    if not match:
-        return line  # Return the line unchanged if it's not a texture command
-
-    shader_name, _ = match.groups()
+    if match := re.match(r"setshader\s+(\S+)(.*)", line):
+        shader_name, _ = match.groups()
+    else:
+        return line
 
     # Ensure shader_name is enclosed in double quotes
     if shader_name.startswith('"'):
