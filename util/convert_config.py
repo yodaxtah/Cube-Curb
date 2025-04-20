@@ -1,17 +1,21 @@
 # https://www.perplexity.ai/search/can-you-create-a-python-script-NGJIlr0fR_SeE7Eipelljg
 
-import os
 import re
 import pathlib
 import shutil
 import fileinput
+import dotenv
+import os
+
+dotenv.load_dotenv(".env")
 
 REPLACED_TEXTURE_TYPES = ["0", "c", "n"]
 APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"]
-SAUERBRATEN_CLIENT = "Sauerbraten"
-OVERRIDEN_INSTALLATION_PATH = None
-# SAUERBRATEN_CLIENT = "Sauerract"
-# OVERRIDEN_INSTALLATION_PATH = r"D:\Projects\Yodah\Tesseract-Sauerbraten"
+SAUERBRATEN_CLIENT = os.environ.get("SAUERBRATEN_CLIENT") or "Sauerbraten"
+OVERRIDDEN_SYSTEM_INSTALLATION_PATH = os.environ.get("OVERRIDDEN_SYSTEM_INSTALLATION_PATH")
+OVERRIDDEN_USER_MOD_PATH = os.environ.get("OVERRIDDEN_USER_MOD_PATH")
+OVERRIDDEN_REPOSITORY_PATH = os.environ.get("OVERRIDDEN_REPOSITORY_PATH")
+WINDOWS_USER_NAME = os.environ.get("WINDOWS_USER_NAME")
 
 def is_upscaled_texture_path(filename: str) -> bool:
     return "harry" in filename \
@@ -377,11 +381,18 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
 def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
-            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games' / SAUERBRATEN_CLIENT
+            if OVERRIDDEN_USER_MOD_PATH:
+                return pathlib.Path(OVERRIDDEN_USER_MOD_PATH) / SAUERBRATEN_CLIENT
+            elif WINDOWS_USER_NAME:
+                return pathlib.Path(r'C:\Users') / WINDOWS_USER_NAME / r'Documents\My Games' / SAUERBRATEN_CLIENT
+            else:
+                raise Exception("Some environment variables are not set yet.")
         case "system":
-            return pathlib.Path(OVERRIDEN_INSTALLATION_PATH or r'C:\Program Files (x86)') / SAUERBRATEN_CLIENT
+            return pathlib.Path(OVERRIDDEN_SYSTEM_INSTALLATION_PATH or r'C:\Program Files (x86)') / SAUERBRATEN_CLIENT
         case "repo":
-            return pathlib.Path(r'.')
+            return pathlib.Path(OVERRIDDEN_REPOSITORY_PATH or r'.')
+        case _:
+            raise Exception("Unhandled case.")
 
 def to_packages_path(t: "user|system|repo"):
     return to_sauerbraten_path(t) / "packages"
@@ -503,6 +514,3 @@ def test_each_map():
 
 def cob(cfg): return copyover(cfg + "/base")
 def tbb(cfg): return takeback(cfg + "/base")
-
-
-User = "harry"
