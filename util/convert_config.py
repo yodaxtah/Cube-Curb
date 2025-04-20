@@ -19,10 +19,30 @@ def filter_quotes(string: str) -> str:
     return string
 
 
+def extract_texture_parameters(param_list: str) -> list[str]:
+    parameters = param_list.strip().split()
+    while len(parameters) < 3:  # Ensure ROT, X, Y, SCALE are present
+        parameters.append('0')  # Default for missing ROT, X, Y
+    if len(parameters) < 4:
+        parameters.append('1.0')  # Default SCALE value
+    return parameters
+
+
+def format_texture_param_list(parameters) -> str:
+    param_list = ""
+    for parameter in parameters:
+        if parameter[-2:] == ".0":
+            parameter = parameter[:-2]
+        if "." in parameter:
+            parameter = str(float(parameter)) # why is this necessary?
+        param_list += " " + parameter
+    return param_list[1:]
+
+
 def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Match the texture command
     if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
-        texture_type, filename, params = match.groups()
+        texture_type, filename, param_list = match.groups()
     else:
         return line, False, None
 
@@ -30,38 +50,28 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
     filename = filter_quotes(filename)
 
     # Split remaining parameters and ensure defaults
-    param_list = params.strip().split()
-    while len(param_list) < 3:  # Ensure ROT, X, Y, SCALE are present
-        param_list.append('0')  # Default for missing ROT, X, Y
-    if len(param_list) < 4:
-        param_list.append('1.0')  # Default SCALE value
+    parameters = extract_texture_parameters(param_list)
 
     if upscale and texture_type in ['0', 'c'] and not is_upscaled_texture_path(filename):
         filename = modify_diffuse_texture(filename)
-        param_list[1] = str(float(param_list[1]) * inverse_texcoordscale)
-        param_list[2] = str(float(param_list[2]) * inverse_texcoordscale)
-        param_list[3] = str(float(param_list[3]) / inverse_texcoordscale)
+        parameters[1] = str(float(parameters[1]) * inverse_texcoordscale)
+        parameters[2] = str(float(parameters[2]) * inverse_texcoordscale)
+        parameters[3] = str(float(parameters[3]) / inverse_texcoordscale)
 
     upscaled = texture_type in ['0', 'c'] and is_upscaled_texture_path(filename)
     if rotation != None:
-        param_list[0] = rotation
+        parameters[0] = rotation
     if x_offset != None:
-        param_list[1] = str(float(x_offset) * inverse_texcoordscale) if upscaled else str(float(x_offset))
+        parameters[1] = str(float(x_offset) * inverse_texcoordscale) if upscaled else str(float(x_offset))
     if y_offset != None:
-        param_list[2] = str(float(y_offset) * inverse_texcoordscale) if upscaled else str(float(y_offset))
+        parameters[2] = str(float(y_offset) * inverse_texcoordscale) if upscaled else str(float(y_offset))
     if scale != None:
-        param_list[3] = str(float(scale) / inverse_texcoordscale) if upscaled else str(float(scale))
+        parameters[3] = str(float(scale) / inverse_texcoordscale) if upscaled else str(float(scale))
     
-    for i in range(4):
-        param = param_list[i]
-        if param[-2:] == ".0":
-            param = param[:-2]
-        if "." in param:
-            param = str(float(param)) # why is this necessary?
-        param_list[i] = param
+    param_list = format_texture_param_list(parameters)
 
     # Reconstruct the line with updated values
-    formatted = f"""texture {texture_type} "{filename}" {" ".join(param_list)}"""
+    formatted = f"""texture {texture_type} "{filename}" {param_list}"""
     return formatted, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
 
 
