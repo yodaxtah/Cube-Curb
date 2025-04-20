@@ -10,14 +10,9 @@ def is_upscaled_texture_path(filename: str) -> bool:
         and "upscale" in filename \
         and "_diffuse" in filename
 
-def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
+def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Match the texture command
-    match = re.match(r'texture\s+(\w+)\s+(\S+)(.*)', main_part)
+    match = re.match(r'texture\s+(\w+)\s+(\S+)(.*)', line)
     if not match:
         return line, False, None  # Return the line unchanged if it's not a texture command
 
@@ -61,8 +56,8 @@ def process_texture_line(line, upscale=True, rotation=None, x_offset=None, y_off
         param_list[i] = param
 
     # Reconstruct the line with updated values
-    updated_line = f'texture {texture_type} {filename} {" ".join(param_list)}{comment}'
-    return updated_line, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
+    formatted = f"texture {texture_type} {filename} {' '.join(param_list)}"
+    return formatted, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
 
 def modify_diffuse_texture(filename):
     """
@@ -89,14 +84,9 @@ def modify_diffuse_texture(filename):
         new_path = path
     return f'"{prefix + new_path.as_posix()}"'
 
-def process_exec_line(line):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
+def format_exec_code(line):
     # Match the texture command
-    match = re.match(r'exec\s+(\S+)(.*)', main_part)
+    match = re.match(r'exec\s+(\S+)(.*)', line)
     if not match:
         return line  # Return the line unchanged if it's not a texture command
 
@@ -111,53 +101,38 @@ def process_exec_line(line):
         filename = "\"packages/harry/upscale/" + filename[len("\"packages/"):]
 
     # Reconstruct the line with updated values
-    updated_line = f'exec {filename}{comment}'
-    return updated_line
+    formatted = f"exec {filename}"
+    return formatted
 
-def process_texrotate_line(line):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
+def format_texrotate_line(line):
     # Match the texture command
-    match = re.match(r'texrotate\s+(\S+)(.*)', main_part)
+    match = re.match(r'texrotate\s+(\S+)(.*)', line)
     if not match:
         return line  # Return the line unchanged if it's not a texture command
 
     rotation, _ = match.groups()
 
     # Reconstruct the line with updated values
-    updated_line = f'texrotate {rotation}'
-    return updated_line, rotation
+    formatted = f'texrotate {rotation}'
+    return formatted, rotation
 
-def process_texscale_line(line):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
+def format_texscale_line(line):
     # Match the texture command
-    match = re.match(r'texscale\s+(\S+)(.*)', main_part)
+    match = re.match(r'texscale\s+(\S+)(.*)', line)
     if not match:
         return line  # Return the line unchanged if it's not a texture command
 
     scale, _ = match.groups()
 
     # Reconstruct the line with updated values
-    updated_line = f'texscale {scale}'
-    return updated_line, scale
+    formatted = f'texscale {scale}'
+    return formatted, scale
 
-def process_texoffset_line(line):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
+def format_texoffset_line(line):
     # Match the texture command
-    match = re.match(r'texoffset\s+(\S+)\s+(\S+)(.*)', main_part)
+    match = re.match(r'texoffset\s+(\S+)\s+(\S+)(.*)', line)
     if not match:
-        match = re.match(r'texoffset\s+(\S+)(.*)', main_part)
+        match = re.match(r'texoffset\s+(\S+)(.*)', line)
         if not match:
             return line  # Return the line unchanged if it's not a texture command
         else:
@@ -167,19 +142,14 @@ def process_texoffset_line(line):
         x_offset, y_offset, _ = match.groups()
 
     # Reconstruct the line with updated values
-    updated_line = f'texoffset {x_offset} {y_offset}'
-    return updated_line, x_offset, y_offset
+    formatted = f'texoffset {x_offset} {y_offset}'
+    return formatted, x_offset, y_offset
 
-def coordscale_parameter_line(scale):
+def format_coordscale_parameter(scale):
     return f"setshaderparam \"texcoordscale\" {scale}"
 
-def process_shader_line(line, texcoordscale):
-    # Split the line into main part and optional comment
-    parts = line.split('//', 1)  # Split at the first occurrence of '//'
-    main_part = parts[0].strip()  # Main part of the line (before the comment)
-    comment = f" //{parts[1]}" if len(parts) > 1 else ""  # Preserve the comment if it exists
-
-    match = re.match(r'setshader\s+(\S+)(.*)', main_part)
+def format_shader_code(line, texcoordscale):
+    match = re.match(r'setshader\s+(\S+)(.*)', line)
     if not match:
         return line  # Return the line unchanged if it's not a texture command
 
@@ -192,24 +162,34 @@ def process_shader_line(line, texcoordscale):
         shader_name = shader_name[:-1]
 
     next_line = ""
-    if True: # shader_name in ["stdworld", "glowworld"]:
-        next_line = "\n" + coordscale_parameter_line(texcoordscale)
+    # if True: # shader_name in ["stdworld", "glowworld"]:
+    #     next_line = "\n" + format_coordscale_parameter(texcoordscale)
     
     shader_name = f'"{shader_name}"'
 
-    return f"setshader {shader_name}{comment}{next_line}"
+    return f"setshader {shader_name}{next_line}"
 
 
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
     new_buffer = ""
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
-        modified_line, _, _ = process_texture_line(line, False, rotation, x_offset, y_offset, scale)
+        modified_line, _, _ = format_texture_code(line, False, rotation, x_offset, y_offset, scale)
         new_buffer += modified_line + "\n"
     return new_buffer
 
 
-def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
+def strip_line(line):
+    parts = line.split('//', 1)
+    code = parts[0].strip()
+    indentation = parts[0][:parts[0].find(code)]
+    comment = f" // {parts[1].strip()}" if len(parts) > 1 else ""
+    if len(comment) == 3:
+        comment = "//"
+    return indentation, code, comment
+
+
+def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     inverse_texcoordscale = upscale_factor / texcoordscale
     buffer = ""
     output_lines = ""
@@ -221,9 +201,9 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     reset = False
     shader_set = False
     for line in lines:
-        stripped_line = line.strip()
-        if stripped_line.startswith('texture '):
-            processed_line, new_texture, is_upscaled = process_texture_line(stripped_line, inverse_texcoordscale=inverse_texcoordscale)
+        indentation, code, comment = strip_line(line)
+        if code.startswith("texture "):
+            formatted, new_texture, is_upscaled = format_texture_code(code, inverse_texcoordscale=inverse_texcoordscale)
             if new_texture:
                 output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
                 rotation = None
@@ -233,27 +213,28 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 buffer = ""
                 if not shader_set:
                     shader_set = True
-                    buffer += process_shader_line("setshader stdworld", texcoordscale) + "\n"
+                    buffer += format_shader_code("setshader stdworld", texcoordscale) + "\n"
+                    buffer += format_coordscale_parameter(texcoordscale) + "\n"
                 if is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
+                    buffer += format_coordscale_parameter(current_texcoordscale) + "\n"
                 elif not is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer += coordscale_parameter_line(current_texcoordscale) + "\n"
-            buffer += processed_line + "\n"
-        elif stripped_line.startswith("texrotate "):
-            updated_line, rotation = process_texrotate_line(stripped_line)
-            buffer += "// " + updated_line + "\n"
-        elif stripped_line.startswith("texscale "):
-            updated_line, scale = process_texscale_line(stripped_line)
-            buffer += "// " + updated_line + "\n"
-        elif stripped_line.startswith("texoffset "):
-            updated_line, x_offset, y_offset = process_texoffset_line(stripped_line)
-            buffer += "// " + updated_line + "\n"
-        elif stripped_line.startswith("texcolor "):
+                    buffer += format_coordscale_parameter(current_texcoordscale) + "\n"
+            buffer += formatted + comment + "\n"
+        elif code.startswith("texrotate "):
+            formatted, rotation = format_texrotate_line(code)
+            buffer += "// " + formatted + comment + "\n"
+        elif code.startswith("texscale "):
+            formatted, scale = format_texscale_line(code)
+            buffer += "// " + formatted + comment + "\n"
+        elif code.startswith("texoffset "):
+            formatted, x_offset, y_offset = format_texoffset_line(code)
+            buffer += "// " + formatted + comment + "\n"
+        elif code.startswith("texcolor "):
             buffer += line
-        elif stripped_line == "":
-            buffer += "\n"
+        elif code == "":
+            buffer += line
         else:
             output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
             rotation = None
@@ -261,30 +242,31 @@ def process_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             y_offset = None
             scale = None
             buffer = ""
-            if stripped_line.startswith("setshader "):
+            if code.startswith("setshader "):
                 shader_set = True
                 current_texcoordscale = texcoordscale
-                updated_line = process_shader_line(stripped_line, texcoordscale)
-                output_lines += updated_line + "\n"
-            elif stripped_line.startswith("texturereset"):
+                formatted = format_shader_code(code, texcoordscale)
+                output_lines += formatted + comment + "\n"
+                output_lines += format_coordscale_parameter(texcoordscale) + "\n"
+            elif code.startswith("texturereset"):
                 reset = True
                 shader_set = False
                 output_lines += line
-                output_lines += coordscale_parameter_line(texcoordscale) + "\n"
-            elif stripped_line.startswith("exec "):
-                processed_line = process_exec_line(stripped_line)
-                output_lines += processed_line + "\n"
-                output_lines += coordscale_parameter_line(current_texcoordscale) + "\n"
+                output_lines += format_coordscale_parameter(texcoordscale) + "\n"
+            elif code.startswith("exec "):
+                formatted = format_exec_code(code)
+                output_lines += formatted + comment + "\n"
+                output_lines += format_coordscale_parameter(current_texcoordscale) + "\n"
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
-    output_lines += coordscale_parameter_line(1.0) + "\n"
+    output_lines += format_coordscale_parameter(1.0) + "\n"
     if not reset:
-        output_lines = coordscale_parameter_line(texcoordscale) + "\n" + output_lines
+        output_lines = format_coordscale_parameter(texcoordscale) + "\n" + output_lines
     return output_lines
 
 
-def process_config_file(input_file_path: pathlib.Path|str, output_file_path: pathlib.Path|str):
+def format_config_file(input_file_path: pathlib.Path|str, output_file_path: pathlib.Path|str):
     lines = []
     with open(input_file_path, "r") as file:
         # lines = file.readlines()
@@ -294,13 +276,13 @@ def process_config_file(input_file_path: pathlib.Path|str, output_file_path: pat
             for part in parts[1:]:
                 lines.append(part.lstrip())
     with open(output_file_path, 'w') as file:
-        output = process_lines(lines)
+        output = format_lines(lines)
         file.write(output)
 
 # if __name__ == '__main__':
 #     input_file = 'input.cfg'  # Replace with your input file name
 #     output_file = 'output.cfg'  # Replace with your desired output file name
-#     process_config_file(input_file, output_file)
+#     format_config_file(input_file, output_file)
 
 def process_directory(directory: str|pathlib.Path = ".", recursive = True):
     for p in pathlib.Path(directory).iterdir():
@@ -310,7 +292,7 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
         else:
             t = p.parent / pathlib.Path("temp.cfg")
             print(p.as_posix())
-            process_config_file(p.as_posix(), t.as_posix())
+            format_config_file(p.as_posix(), t.as_posix())
             p.unlink()
             t.rename(p.as_posix())
 
