@@ -5,6 +5,9 @@ import re
 import pathlib
 import shutil
 
+REPLACED_TEXTURE_TYPES = ["0", "c", "n"]
+APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"]
+
 def is_upscaled_texture_path(filename: str) -> bool:
     return "harry" in filename \
         and "upscale" in filename \
@@ -70,13 +73,13 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
     # Split remaining parameters and ensure defaults
     parameters = extract_texture_parameters(param_list)
 
-    if upscale and texture_type in ['0', 'c'] and not is_upscaled_texture_path(filename):
+    if upscale and texture_type in REPLACED_TEXTURE_TYPES and not is_upscaled_texture_path(filename):
         filename = upscaled_filename_for(filename, texture_type)
         parameters = upscale_texture_parameters(parameters, inverse_texcoordscale)
 
     # Overwrite parameters
     override_parameters = (rotation, x_offset, y_offset, scale)
-    if texture_type in ['0', 'c'] and is_upscaled_texture_path(filename):
+    if texture_type in REPLACED_TEXTURE_TYPES and is_upscaled_texture_path(filename):
         override_parameters = upscale_texture_parameters(override_parameters, inverse_texcoordscale)
     parameters = tuple(parameters[i] if (o := override_parameters[i]) == None else o for i in range(4))
 
@@ -85,7 +88,7 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
 
     # Reconstruct the line with updated values
     formatted = f"""texture {texture_type} "{filename_prexif}{filename}" {param_list}"""
-    return formatted, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
+    return formatted, texture_type in {"c", "0"}, is_upscaled_texture_path(filename)
 
 
 def to_texture_type_postfix(texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
@@ -120,6 +123,21 @@ def to_texture_type_postfix(texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
             return None
 
 
+# postfixes = set()
+# postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', '2', 'depth', '27', 'nm', 'z', 's', 'trnd', 'd', 'light', 'h', 'basic128', 'DISP', 'hm', '45'})
+postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
+def trim_texture_stem(stem, texture_type):
+    global postfixes
+    # if texture_type not in ["0", "c"] and len(parts := stem.split("_")) > 1:
+    #     postfixes.add(parts[-1])
+    if texture_type not in ["0", "c"]:
+        for postfix in postfixes:
+            postfix = "_" + postfix
+            if stem[(end := -len(postfix)):] == postfix:
+                return stem[:end]
+    return stem
+
+
 def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
     """
     Modifies the diffuse texture (texture type 0) by:
@@ -130,9 +148,13 @@ def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|w
     # Extract directory, filestem, and extension
     path = pathlib.Path(filename)
     postfix = to_texture_type_postfix(texture_type)
-    new_path = "harry/upscale" / path.parent / f"{path.stem}_{postfix}.png"
-
-    file_path = to_packages_path("user") / new_path
+    stems = [path.stem, trim_texture_stem(path.stem, texture_type)]
+    stems.append(stems[-1] + "_d")
+    for stem in stems:
+        new_path = "harry/upscale" / path.parent / f"{stem}_{postfix}.png"
+        file_path = to_packages_path("user") / new_path
+        if file_path.is_file():
+            break
     if not file_path.is_file():
         new_path = path
     return new_path.as_posix()
