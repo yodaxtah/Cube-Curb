@@ -47,6 +47,15 @@ def upscale_texture_parameters(parameters: tuple, inverse_texcoordscale: float) 
     )
 
 
+def split_filename_and_prefix(filename: str) -> tuple[str, str]:
+    prefix = ""
+    if filename[:1] == "<":
+        end = filename.find(">") + 1
+        prefix = filename[0:end]
+        filename = filename[end:]
+    return prefix, filename
+
+
 def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Match the texture command
     if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
@@ -56,12 +65,13 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
 
     # Ensure filename is enclosed in double quotes
     filename = filter_quotes(filename)
+    filename_prexif, filename = split_filename_and_prefix(filename)
 
     # Split remaining parameters and ensure defaults
     parameters = extract_texture_parameters(param_list)
 
     if upscale and texture_type in ['0', 'c'] and not is_upscaled_texture_path(filename):
-        filename = modify_diffuse_texture(filename)
+        filename = upscaled_filename_for(filename, texture_type)
         parameters = upscale_texture_parameters(parameters, inverse_texcoordscale)
 
     # Overwrite parameters
@@ -74,30 +84,58 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
     param_list = format_texture_param_list(parameters)
 
     # Reconstruct the line with updated values
-    formatted = f"""texture {texture_type} "{filename}" {param_list}"""
+    formatted = f"""texture {texture_type} "{filename_prexif}{filename}" {param_list}"""
     return formatted, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
 
 
-def modify_diffuse_texture(filename):
+def to_texture_type_postfix(texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
+    """
+    "c" or 0 for primary diffuse texture (RGB)
+    "u" or 1 for generic secondary texture
+    "d" for decals (RGBA), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
+    "n" for normal maps (XYZ)
+    "g" for glow maps (RGB), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
+    "s" for specularity maps (grey-scale), put in alpha channel of diffuse ("c")
+    "z" for depth maps (Z), put in alpha channel of normal ("n") maps
+    "e" for environment maps (skybox), uses the same syntax as "loadsky", and set a custom environment map (overriding the "envmap" entities) to use in environment-mapped shaders ("bumpenv*world")
+    """
+    match texture_type:
+        case "c" | "0":
+            return "diffuse"
+        case "u" | "1":
+            return None
+        case "d":
+            return None
+        case "n":
+            return "normal_dx"
+        case "g":
+            return None
+        case "s":
+            return None
+        case "z":
+            return "height"
+        case "e":
+            return None
+        case _:
+            return None
+
+
+def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
     """
     Modifies the diffuse texture (texture type 0) by:
       - Prepending "harry/upscale/" to the filestem.
       - Appending "_diffuse" to the filestem.
       - Appending ".png" suffix to the filestem.
     """
-    prefix = ""
-    if len(filename) > 0 and filename[0] == "<":
-        prefix = filename[0:filename.find(">")+1]
-        filename = filename[filename.find(">")+1:]
-
     # Extract directory, filestem, and extension
     path = pathlib.Path(filename)
-    new_path = "harry/upscale" / path.parent / f"{path.stem}_diffuse.png"
+    postfix = to_texture_type_postfix(texture_type)
+    new_path = "harry/upscale" / path.parent / f"{path.stem}_{postfix}.png"
 
     file_path = to_packages_path("user") / new_path
     if not file_path.is_file():
         new_path = path
-    return prefix + new_path.as_posix()
+    return new_path.as_posix()
 
 
 def format_exec_code(line):
