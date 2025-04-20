@@ -10,6 +10,15 @@ def is_upscaled_texture_path(filename: str) -> bool:
         and "upscale" in filename \
         and "_diffuse" in filename
 
+
+def filter_quotes(string: str) -> str:
+    if string.startswith('"'):
+        string = string[1:]
+    if string.endswith('"'):
+        string = string[:-1]
+    return string
+
+
 def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
     # Match the texture command
     if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
@@ -18,10 +27,7 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
         return line, False, None
 
     # Ensure filename is enclosed in double quotes
-    if not filename.startswith('"') and not filename.endswith('"'):
-        filename = f'"{filename}"'
-
-    # Modify the diffuse texture if texture type is '0'
+    filename = filter_quotes(filename)
 
     # Split remaining parameters and ensure defaults
     param_list = params.strip().split()
@@ -55,8 +61,9 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
         param_list[i] = param
 
     # Reconstruct the line with updated values
-    formatted = f"texture {texture_type} {filename} {' '.join(param_list)}"
+    formatted = f"""texture {texture_type} "{filename}" {" ".join(param_list)}"""
     return formatted, texture_type in ['0', 'c'], is_upscaled_texture_path(filename)
+
 
 def modify_diffuse_texture(filename):
     """
@@ -65,10 +72,6 @@ def modify_diffuse_texture(filename):
       - Appending "_diffuse" to the filestem.
       - Appending ".png" suffix to the filestem.
     """
-    # Remove quotes for easier processing
-    if filename.startswith('"') and filename.endswith('"'):
-        filename = filename[1:-1]
-
     prefix = ""
     if len(filename) > 0 and filename[0] == "<":
         prefix = filename[0:filename.find(">")+1]
@@ -81,7 +84,8 @@ def modify_diffuse_texture(filename):
     file_path = to_packages_path("user") / new_path
     if not file_path.is_file():
         new_path = path
-    return f'"{prefix + new_path.as_posix()}"'
+    return prefix + new_path.as_posix()
+
 
 def format_exec_code(line):
     if match := re.match(r"exec\s+(\S+)(.*)", line):
@@ -90,16 +94,16 @@ def format_exec_code(line):
         return line
 
     # Ensure filename is enclosed in double quotes
-    if not filename.startswith('"') and not filename.endswith('"'):
-        filename = f'"{filename}"'
+    filename = filter_quotes(filename)
 
     # Modify the diffuse texture if texture type is '0'
-    if "harry/upscale/" not in filename and filename.startswith("\"packages/"):
-        filename = "\"packages/harry/upscale/" + filename[len("\"packages/"):]
+    if "harry/upscale/" not in filename and filename.startswith("packages/"):
+        filename = "packages/harry/upscale/" + filename[len("packages/"):]
 
     # Reconstruct the line with updated values
-    formatted = f"exec {filename}"
+    formatted = f"""exec "{filename}\""""
     return formatted
+
 
 def format_texrotate_line(line):
     if match := re.match(r"texrotate\s+(\S+)(.*)", line):
@@ -108,8 +112,9 @@ def format_texrotate_line(line):
         return line
 
     # Reconstruct the line with updated values
-    formatted = f'texrotate {rotation}'
+    formatted = f"""texrotate {rotation}"""
     return formatted, rotation
+
 
 def format_texscale_line(line):
     if match := re.match(r"texscale\s+(\S+)(.*)", line):
@@ -118,8 +123,9 @@ def format_texscale_line(line):
         return line
 
     # Reconstruct the line with updated values
-    formatted = f'texscale {scale}'
+    formatted = f"""texscale {scale}"""
     return formatted, scale
+
 
 def format_texoffset_line(line):
     if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", line):
@@ -131,11 +137,13 @@ def format_texoffset_line(line):
         return line
 
     # Reconstruct the line with updated values
-    formatted = f"texoffset {x_offset} {y_offset}"
+    formatted = f"""texoffset {x_offset} {y_offset}"""
     return formatted, x_offset, y_offset
 
-def format_coordscale_parameter(scale):
-    return f"setshaderparam \"texcoordscale\" {scale}"
+
+def format_texcoordscale(scale):
+    return f"""setshaderparam "texcoordscale" {scale}"""
+
 
 def format_shader_code(line, texcoordscale):
     if match := re.match(r"setshader\s+(\S+)(.*)", line):
@@ -144,18 +152,9 @@ def format_shader_code(line, texcoordscale):
         return line
 
     # Ensure shader_name is enclosed in double quotes
-    if shader_name.startswith('"'):
-        shader_name = shader_name[1:]
-    if shader_name.endswith('"'):
-        shader_name = shader_name[:-1]
+    shader_name = filter_quotes(shader_name)
 
-    next_line = ""
-    # if True: # shader_name in ["stdworld", "glowworld"]:
-    #     next_line = "\n" + format_coordscale_parameter(texcoordscale)
-    
-    shader_name = f'"{shader_name}"'
-
-    return f"setshader {shader_name}{next_line}"
+    return f"""setshader "{shader_name}\""""
 
 
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
@@ -205,13 +204,13 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 if not shader_set:
                     shader_set = True
                     buffer += indentation + format_shader_code("setshader stdworld", texcoordscale) + "\n"
-                    buffer += indentation + format_coordscale_parameter(texcoordscale) + "\n"
+                    buffer += indentation + format_texcoordscale(texcoordscale) + "\n"
                 if is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
+                    buffer += indentation + format_texcoordscale(current_texcoordscale) + "\n"
                 elif not is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
+                    buffer += indentation + format_texcoordscale(current_texcoordscale) + "\n"
             buffer += indentation + formatted + comment + "\n"
         elif code.startswith("texrotate "):
             formatted, rotation = format_texrotate_line(code)
@@ -238,12 +237,12 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 current_texcoordscale = texcoordscale
                 formatted = format_shader_code(code, texcoordscale)
                 output_lines += indentation + formatted + comment + "\n"
-                output_lines += indentation + format_coordscale_parameter(texcoordscale) + "\n"
+                output_lines += indentation + format_texcoordscale(texcoordscale) + "\n"
             elif code.startswith("texturereset"):
                 reset = True
                 shader_set = False
                 output_lines += line
-                output_lines += indentation + format_coordscale_parameter(texcoordscale) + "\n"
+                output_lines += indentation + format_texcoordscale(texcoordscale) + "\n"
             elif code.startswith("exec "):
                 current_texcoordscale = 1.0
                 formatted = format_exec_code(code)
@@ -251,9 +250,9 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
-    output_lines += format_coordscale_parameter(1.0) + "\n"
+    output_lines += format_texcoordscale(1.0) + "\n"
     if not reset:
-        output_lines = format_coordscale_parameter(texcoordscale) + "\n" + output_lines
+        output_lines = format_texcoordscale(texcoordscale) + "\n" + output_lines
     return output_lines
 
 
