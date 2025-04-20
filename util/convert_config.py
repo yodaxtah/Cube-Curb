@@ -257,9 +257,9 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 output_lines += line
                 output_lines += indentation + format_coordscale_parameter(texcoordscale) + "\n"
             elif code.startswith("exec "):
+                current_texcoordscale = 1.0
                 formatted = format_exec_code(code)
                 output_lines += indentation + formatted + comment + "\n"
-                output_lines += indentation + format_coordscale_parameter(current_texcoordscale) + "\n"
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
