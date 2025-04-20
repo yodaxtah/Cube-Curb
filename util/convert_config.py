@@ -4,6 +4,7 @@ import os
 import re
 import pathlib
 import shutil
+import fileinput
 
 REPLACED_TEXTURE_TYPES = ["0", "c", "n"]
 APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"]
@@ -369,8 +370,6 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
             p.unlink()
             t.rename(p.as_posix())
 
-User = "harry"
-
 def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
@@ -389,55 +388,109 @@ def to_packages_base_path(t: "user|system|repo"):
 def to_data_path(t: "user|system|repo"):
     return to_sauerbraten_path(t) / "data"
 
-def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_path("user")):
+def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_base_path("user")):
     cfg = pathlib.Path(cfg)
     destination = pathlib.Path(destination)
+    if cfg.suffix != ".cfg":
+        cfg = cfg.with_suffix(".cfg")
     assert cfg.is_file()
-    if cfg.suffix == ".cfg":
-        shutil.copy(pathlib.Path(cfg).resolve(), destination.resolve())
-    else:
-        print(cfg)
-        shutil.copy(pathlib.Path(cfg + ".cfg").resolve(), destination.resolve())
+    shutil.copy(pathlib.Path(cfg).resolve(), destination.resolve())
 
-def takeback(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_path("user")):
+def takeback(cfg: pathlib.Path|str, target: pathlib.Path|str = to_packages_base_path("user")):
     cfg = pathlib.Path(cfg)
-    destination = pathlib.Path(destination)
-    if cfg.suffix == ".cfg":
-        (destination / cfg).unlink()
-    else:
-        (destination / cfg + ".cfg").unlink()
+    target = pathlib.Path(target)
+    if cfg.suffix != ".cfg":
+        cfg = cfg.with_suffix(".cfg")
+    (target / cfg).unlink()
 
-def copyover_directory(source: str|pathlib.Path = to_packages_path("repo"), destination: pathlib.Path|str = to_packages_path("user"), recursive = True, directory = None):
-    source = source.resolve()
-    destination = destination.resolve()
+def copyover_directory(source_root: str|pathlib.Path = to_packages_path("repo"), destination_root: pathlib.Path|str = to_packages_path("user"), recursive = True, directory = None):
     if directory == None:
-        directory = source
-    for p in pathlib.Path(source).iterdir():
-        p = pathlib.Path(p)
-        if p.is_dir() and recursive:
-            copyover_directory(p, destination, recursive, directory)
-        elif p.suffix == ".cfg":
-            print(p.as_posix())
-            d = (destination / p.relative_to(directory)).parent
-            d.mkdir(parents=True, exist_ok=True)
-            copyover(p, d)
-
+        source_root = pathlib.Path(source_root).resolve()
+        destination_root = pathlib.Path(destination_root).resolve()
+        directory = source_root
+    for path in directory.iterdir():
+        if path.is_dir() and recursive:
+            copyover_directory(source_root, destination_root, recursive, path)
+        elif path.suffix == ".cfg":
+            print(path.as_posix())
+            destination = (destination_root / path.relative_to(source_root)).parent
+            destination.mkdir(parents=True, exist_ok=True)
+            copyover(path, destination)
 
 def setup():
+    # 1. copy the system files over to the repository directory
     copyover_directory(to_packages_path("system"), to_packages_path("repo"), True)
+
     # 2. remove fonts
-    """
-    >>> R = pathlib.Path("./fonts/default.cfg")
-    >>> R.unlink()
-    """
-    # 3. replace divf 1 3 with 0.3333333333
-    process_directory()
-    # 5. remove models
-    """
-    >>> Q = list(pathlib.Path(".").glob("./models/**/*.cfg"))
-    >>> for q in Q: q.unlink()
-    """
+    (to_packages_path("repo") / "fonts" / "default.cfg").unlink()
+
+    # 3. remove models
+    models = list(to_packages_path("repo").glob("./models/**/*.cfg"))
+    for model in models:
+        model.unlink()
+    shutil.rmtree(to_packages_path("repo") / "models")
+
+    # 4. replace divf 1 3 with 0.3333333333
+    gorge = to_packages_base_path("repo") / "gorge.cfg"
+    with fileinput.FileInput(gorge, inplace=True) as file:
+        for line in file:
+            print(line.replace("(divf 1 3)", "0.3333333333"), end="")
+    island = to_packages_base_path("repo") / "island.cfg"
+    with fileinput.FileInput(island, inplace=True) as file:
+        for line in file:
+            print(line.replace("""texture 0 "dg/mad064.jpg""", """texture 0 "dg/mad064.jpg\""""), end="")
+    paradigm = to_packages_base_path("repo") / "paradigm.cfg"
+    with fileinput.FileInput(paradigm, inplace=True) as file:
+        for line in file:
+            print(line.replace("32s", "32"), end="")
+
+    # 5. process the directory
+    process_directory(to_packages_path("repo"))
+
+    # 6. copy the repo base to the user base
+    copyover(to_data_path("system") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
+    format_config_file(to_data_path("repo") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
+    copyover(to_data_path("repo") / "default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
+    # takeback(to_data_path("user") / "default_map_settings.cfg")
+
+    # 7. test environments
+    test_maps()
+
+maps = ["asgard", "aard3c", "aastha", "abbey", "abyss", "academy", "access", "akaritori", "akimiski", "akroseum", "albatross", "alithia", "alloy", "antel", "anubis", "aod", "aqueducts", "arabic", "arbana", "asenatra"]
+
+
+def test_maps():
+    # maps = ["aastha", "bklyn"]
+    print("testing packages/base:")
+    for map_name in maps:
+        print("-", map_name)
+        copyover(to_packages_base_path("repo") / map_name, to_packages_base_path("user"))
+    # copyover(to_data_path("repo") / "default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
+
+    input("press any key to takeback the files...")
+
+    # reset to defaults
+    for map_name in maps:
+        takeback(map_name)
+    # copyover("default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
+
+
+def test_each_map():
+    # maps = ["aastha", "bklyn"]
+    print("testing packages/base:")
+    for path in to_packages_base_path("system").glob("*.ogz"):
+        if path.is_file():
+            map_name = path.stem
+            print("- ", map_name, end="\t : ")
+            if (to_packages_base_path("repo") / (path.stem + ".cfg")).is_file():
+                copyover(to_packages_base_path("repo") / map_name, to_packages_base_path("user"))
+            input("press any key to takeback the files...")
+            if (to_packages_base_path("repo") / (path.stem + ".cfg")).is_file():
+                takeback(map_name)
 
 
 def cob(cfg): return copyover(cfg + "/base")
 def tbb(cfg): return takeback(cfg + "/base")
+
+
+User = "harry"
