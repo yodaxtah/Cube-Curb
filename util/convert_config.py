@@ -266,15 +266,25 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     return output_lines
 
 
+def split_lines(line):
+    parts = line.split(";")
+    return [parts[0]] + [part.lstrip() for part in parts[1:]]
+
+
+def split_lines_with_comments(line):
+    if (start_comment_index := line.find("//")) == -1:
+        return split_lines(line)
+    else:
+        lines = split_lines(line[:start_comment_index])
+        return lines[:-1] + [lines[-1] + line[start_comment_index:]]
+
+
 def format_config_file(input_file_path: pathlib.Path|str, output_file_path: pathlib.Path|str):
     lines = []
     with open(input_file_path, "r") as file:
         # lines = file.readlines()
         while line := file.readline():
-            parts = line.split(";")
-            lines.append(parts[0])
-            for part in parts[1:]:
-                lines.append(part.lstrip())
+            lines += split_lines_with_comments(line)
     with open(output_file_path, 'w') as file:
         output = format_lines(lines)
         file.write(output)
