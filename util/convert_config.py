@@ -8,6 +8,10 @@ import fileinput
 
 REPLACED_TEXTURE_TYPES = ["0", "c", "n"]
 APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"]
+SAUERBRATEN_CLIENT = "Sauerbraten"
+OVERRIDEN_INSTALLATION_PATH = None
+# SAUERBRATEN_CLIENT = "Sauerract"
+# OVERRIDEN_INSTALLATION_PATH = r"D:\Projects\Yodah\Tesseract-Sauerbraten"
 
 def is_upscaled_texture_path(filename: str) -> bool:
     return "harry" in filename \
@@ -373,9 +377,9 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
 def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
-            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games\Sauerbraten'
+            return pathlib.Path(r'C:\Users') / User / r'Documents\My Games' / SAUERBRATEN_CLIENT
         case "system":
-            return pathlib.Path(r'C:\Program Files (x86)\Sauerbraten')
+            return pathlib.Path(OVERRIDEN_INSTALLATION_PATH or r'C:\Program Files (x86)') / SAUERBRATEN_CLIENT
         case "repo":
             return pathlib.Path(r'.')
 
@@ -383,10 +387,18 @@ def to_packages_path(t: "user|system|repo"):
     return to_sauerbraten_path(t) / "packages"
 
 def to_packages_base_path(t: "user|system|repo"):
-    return to_sauerbraten_path(t) / "packages" / "base"
+    base = "map" if SAUERBRATEN_CLIENT == "Sauerract" else "base"
+    return to_sauerbraten_path(t) / "packages" / base
 
 def to_data_path(t: "user|system|repo"):
-    return to_sauerbraten_path(t) / "data"
+    data = "config" if SAUERBRATEN_CLIENT == "Sauerract" else "data"
+    return to_sauerbraten_path(t) / data
+
+def to_glsl_config_path(t: "user|system|repo"):
+    if SAUERBRATEN_CLIENT:
+        return to_data_path(t) / "glsl" / "world.cfg"
+    else:
+        return to_data_path(t) / "glsl.cfg"
 
 def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_base_path("user")):
     cfg = pathlib.Path(cfg)
