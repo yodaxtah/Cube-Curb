@@ -6,16 +6,24 @@ import shutil
 import fileinput
 import dotenv
 import os
+import types
 
-dotenv.load_dotenv(".env")
 
-REPLACED_TEXTURE_TYPES = ["0", "c", "n"]
-APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"]
-SAUERBRATEN_CLIENT = os.environ.get("SAUERBRATEN_CLIENT") or "Sauerbraten"
-OVERRIDDEN_SYSTEM_INSTALLATION_PATH = os.environ.get("OVERRIDDEN_SYSTEM_INSTALLATION_PATH")
-OVERRIDDEN_USER_MOD_PATH = os.environ.get("OVERRIDDEN_USER_MOD_PATH")
-OVERRIDDEN_REPOSITORY_PATH = os.environ.get("OVERRIDDEN_REPOSITORY_PATH")
-WINDOWS_USER_NAME = os.environ.get("WINDOWS_USER_NAME")
+def reload_environment_variables():
+    dotenv.load_dotenv(".env")
+    return types.SimpleNamespace(
+        REPLACED_TEXTURE_TYPES = ["0", "c", "n"],
+        APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"],
+        SAUERBRATEN_CLIENT = os.environ.get("SAUERBRATEN_CLIENT") or "Sauerbraten",
+        OVERRIDDEN_SYSTEM_INSTALLATION_PATH = os.environ.get("OVERRIDDEN_SYSTEM_INSTALLATION_PATH"),
+        OVERRIDDEN_USER_MOD_PATH = os.environ.get("OVERRIDDEN_USER_MOD_PATH"),
+        OVERRIDDEN_REPOSITORY_PATH = os.environ.get("OVERRIDDEN_REPOSITORY_PATH"),
+        WINDOWS_USER_NAME = os.environ.get("WINDOWS_USER_NAME"),
+    )
+
+
+env = reload_environment_variables()
+
 
 def is_upscaled_texture_path(filename: str) -> bool:
     return "harry" in filename \
@@ -82,13 +90,13 @@ def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offs
     # Split remaining parameters and ensure defaults
     parameters = extract_texture_parameters(param_list)
 
-    if upscale and texture_type in REPLACED_TEXTURE_TYPES and not is_upscaled_texture_path(filename):
+    if upscale and texture_type in env.REPLACED_TEXTURE_TYPES and not is_upscaled_texture_path(filename):
         filename = upscaled_filename_for(filename, texture_type)
         parameters = upscale_texture_parameters(parameters, inverse_texcoordscale)
 
     # Overwrite parameters
     override_parameters = (rotation, x_offset, y_offset, scale)
-    if texture_type in REPLACED_TEXTURE_TYPES and is_upscaled_texture_path(filename):
+    if texture_type in env.REPLACED_TEXTURE_TYPES and is_upscaled_texture_path(filename):
         override_parameters = upscale_texture_parameters(override_parameters, inverse_texcoordscale)
     parameters = tuple(parameters[i] if (o := override_parameters[i]) == None else o for i in range(4))
 
@@ -381,16 +389,19 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
 def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
-            if OVERRIDDEN_USER_MOD_PATH:
-                return pathlib.Path(OVERRIDDEN_USER_MOD_PATH) / SAUERBRATEN_CLIENT
-            elif WINDOWS_USER_NAME:
-                return pathlib.Path(r'C:\Users') / WINDOWS_USER_NAME / r'Documents\My Games' / SAUERBRATEN_CLIENT
+            if env.OVERRIDDEN_USER_MOD_PATH:
+                return pathlib.Path(env.OVERRIDDEN_USER_MOD_PATH)
+            elif env.WINDOWS_USER_NAME:
+                return pathlib.Path(r'C:\Users') / env.WINDOWS_USER_NAME / r'Documents\My Games' / env.SAUERBRATEN_CLIENT
             else:
                 raise Exception("Some environment variables are not set yet.")
         case "system":
-            return pathlib.Path(OVERRIDDEN_SYSTEM_INSTALLATION_PATH or r'C:\Program Files (x86)') / SAUERBRATEN_CLIENT
+            if env.OVERRIDDEN_SYSTEM_INSTALLATION_PATH:
+                return pathlib.Path(env.OVERRIDDEN_SYSTEM_INSTALLATION_PATH)
+            else:
+                return pathlib.Path(r'C:\Program Files (x86)') / env.SAUERBRATEN_CLIENT
         case "repo":
-            return pathlib.Path(OVERRIDDEN_REPOSITORY_PATH or r'.')
+            return pathlib.Path(env.OVERRIDDEN_REPOSITORY_PATH or r'.')
         case _:
             raise Exception("Unhandled case.")
 
@@ -398,15 +409,15 @@ def to_packages_path(t: "user|system|repo"):
     return to_sauerbraten_path(t) / "packages"
 
 def to_packages_base_path(t: "user|system|repo"):
-    base = "map" if SAUERBRATEN_CLIENT == "Sauerract" else "base"
+    base = "map" if env.SAUERBRATEN_CLIENT == "Sauerract" else "base"
     return to_sauerbraten_path(t) / "packages" / base
 
 def to_data_path(t: "user|system|repo"):
-    data = "config" if SAUERBRATEN_CLIENT == "Sauerract" else "data"
+    data = "config" if env.SAUERBRATEN_CLIENT == "Sauerract" else "data"
     return to_sauerbraten_path(t) / data
 
 def to_glsl_config_path(t: "user|system|repo"):
-    if SAUERBRATEN_CLIENT:
+    if env.SAUERBRATEN_CLIENT:
         return to_data_path(t) / "glsl" / "world.cfg"
     else:
         return to_data_path(t) / "glsl.cfg"
