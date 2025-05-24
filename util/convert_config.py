@@ -19,6 +19,7 @@ def reload_environment_variables():
         OVERRIDDEN_USER_MOD_PATH = os.environ.get("OVERRIDDEN_USER_MOD_PATH"),
         OVERRIDDEN_REPOSITORY_PATH = os.environ.get("OVERRIDDEN_REPOSITORY_PATH"),
         WINDOWS_USER_NAME = os.environ.get("WINDOWS_USER_NAME"),
+        TESSERACT_ENGINE = bool(os.environ.get("TESSERACT_ENGINE"))
     )
 
 
@@ -386,6 +387,10 @@ def process_directory(directory: str|pathlib.Path = ".", recursive = True):
             p.unlink()
             t.rename(p.as_posix())
 
+def is_tesseract_client():
+    return env.SAUERBRATEN_CLIENT == "Sauerract" \
+        or env.TESSERACT_ENGINE == True
+
 def to_sauerbraten_path(t: "user|system|repo"):
     match t:
         case "user":
@@ -409,15 +414,15 @@ def to_packages_path(t: "user|system|repo"):
     return to_sauerbraten_path(t) / "packages"
 
 def to_packages_base_path(t: "user|system|repo"):
-    base = "map" if env.SAUERBRATEN_CLIENT == "Sauerract" else "base"
+    base = "map" if is_tesseract_client() else "base"
     return to_sauerbraten_path(t) / "packages" / base
 
 def to_data_path(t: "user|system|repo"):
-    data = "config" if env.SAUERBRATEN_CLIENT == "Sauerract" else "data"
+    data = "config" if is_tesseract_client() else "data"
     return to_sauerbraten_path(t) / data
 
 def to_glsl_config_path(t: "user|system|repo"):
-    if env.SAUERBRATEN_CLIENT:
+    if is_tesseract_client():
         return to_data_path(t) / "glsl" / "world.cfg"
     else:
         return to_data_path(t) / "glsl.cfg"
@@ -425,6 +430,7 @@ def to_glsl_config_path(t: "user|system|repo"):
 def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_base_path("user")):
     cfg = pathlib.Path(cfg)
     destination = pathlib.Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     if cfg.suffix != ".cfg":
         cfg = cfg.with_suffix(".cfg")
     assert cfg.is_file()
@@ -456,13 +462,17 @@ def setup():
     copyover_directory(to_packages_path("system"), to_packages_path("repo"), True)
 
     # 2. remove fonts
-    (to_packages_path("repo") / "fonts" / "default.cfg").unlink()
+    if (p := (to_packages_path("repo") / "fonts" / "default.cfg")).is_file():
+        p.unlink()
 
-    # 3. remove models
-    models = list(to_packages_path("repo").glob("./models/**/*.cfg"))
-    for model in models:
-        model.unlink()
-    shutil.rmtree(to_packages_path("repo") / "models")
+    # 3. remove models, interface, sound
+    directories = ["models", "interface", "sound"]
+    for config_directory in directories:
+        if (path := to_packages_path("repo") / config_directory).is_dir():
+            configs = list(to_packages_path("repo").glob(f"./{config_directory}/**/*.cfg"))
+            for config in configs:
+                config.unlink()
+            shutil.rmtree(path)
 
     # 4. replace divf 1 3 with 0.3333333333
     gorge = to_packages_base_path("repo") / "gorge.cfg"
@@ -482,12 +492,16 @@ def setup():
     process_directory(to_packages_path("repo"))
 
     # 6. copy the repo base to the user base
+    # default_map_settings.cfg
     copyover(to_data_path("system") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
     format_config_file(to_data_path("repo") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
     copyover(to_data_path("repo") / "default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
     # takeback(to_data_path("user") / "default_map_settings.cfg")
 
-    # 7. test environments
+    # 7. copy the repo glsl config mod to the user data
+    copyover(to_glsl_config_path("repo"), to_glsl_config_path("user")) 
+
+    # 8. test environments
     test_maps()
 
 maps = ["asgard", "aard3c", "aastha", "abbey", "abyss", "academy", "access", "akaritori", "akimiski", "akroseum", "albatross", "alithia", "alloy", "antel", "anubis", "aod", "aqueducts", "arabic", "arbana", "asenatra"]
