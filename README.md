@@ -13,6 +13,15 @@ Sauerbraten is an old game, so are its textures. However, nowadays, many upscali
 
 ## Manual install (WIP)
 
+> [!NOTE]  
+> The textures are stored in a file transfer service, so they are currently only available until the **First of June (2025)**
+
+> [!WARNING]  
+> Make sure you read all instructions and be careful with overriding files, because they will be lost. Can't hurt to read a bit ahead and make backups as proposed.
+
+> [!NOTE]  
+> You need to run a few `mklink`s for the non-vanilla Tesseract-Sauerbraten client; come back later for detailed instructions, but already get the textures while they are available.
+
 - Optional: Go to a specific map, move close to the geometry, make sure you have a few (but not only 1) close textures in sight and take a screenshot.
 - Go to `My Games/Sauerbraten/packages`, create `harry`, enter the folder, create `upscale`. You should now be at `My Games/Sauerbraten/packages/harry/upscale`.
 - Get the Send content (see below). If you get a message "This browser might not be able to decrypt a file this big", just "Continue with this browser". The files are not encrypted. Extract the zip and you'll see two files: `README.md` and another zip containing textures. Extract the other zip which should be one of the following names. (You can back and forth to the next step as soon as you have a package.)
@@ -26,6 +35,6 @@ Sauerbraten is an old game, so are its textures. However, nowadays, many upscali
     - Extract the textures from `upscale-textures-subfolders-set-1.zip` to the folder `.../upscale/textures`, such that you have new folders `.../upscale/textures/fatum`, ..., `.../upscale/textures/nieb`.
     - Extract the textures from `upscale-textures-subfolders-set-2.zip` to the folder `.../upscale/textures`, such that you have new folders `.../upscale/textures/ow`, ..., `.../upscale/textures/yves_allaire`.
 - If you have modifications in `packages`, `config` or `data`, make sure you backup your changes.
-- Download `packages`, and `data` (or `config`) folders from this repository; they contain the prebuilt config files, generated using the `util/convert_config.py` script. The folder `data` is only needed for Sauerbraten, the folder `config` is only needed for Tesseract. NOTE: You need to run a few `mklink`s for the Tesseract-Sauerbraten client; come back later for detailed instructions.
+- Download `packages`, and `data` (or `config`) folders from this repository; they contain the prebuilt config files, generated using the `util/convert_config.py` script. The folder `data` is only needed for Sauerbraten, the folder `config` is only needed for Tesseract.
 - Paste these folders in `My Games/Sauerbraten/` and override the contents if necessary. This will add the files to the potentially already existing folders and override files whenever it already existed.
 - Start Sauerbraten, open any map and move towards a texture. It should look better.
