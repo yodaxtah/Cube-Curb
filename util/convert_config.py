@@ -12,8 +12,8 @@ import types
 def reload_environment_variables():
     dotenv.load_dotenv(".env")
     return types.SimpleNamespace(
-        REPLACED_TEXTURE_TYPES = ["0", "c", "n"],
-        APPENDED_TEXTURE_TYPES = ["0", "c", "n", "z"],
+        REPLACED_TEXTURE_TYPES = ["0", "c"],
+        APPENDED_TEXTURE_TYPES = ["n", "z"],
         SAUERBRATEN_CLIENT = os.environ.get("SAUERBRATEN_CLIENT") or "Sauerbraten",
         OVERRIDDEN_SYSTEM_INSTALLATION_PATH = os.environ.get("OVERRIDDEN_SYSTEM_INSTALLATION_PATH"),
         OVERRIDDEN_USER_MOD_PATH = os.environ.get("OVERRIDDEN_USER_MOD_PATH"),
