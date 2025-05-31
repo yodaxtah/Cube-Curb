@@ -433,6 +433,8 @@ def copyover(cfg: pathlib.Path|str, destination: pathlib.Path|str = to_packages_
     destination.parent.mkdir(parents=True, exist_ok=True)
     if cfg.suffix != ".cfg":
         cfg = cfg.with_suffix(".cfg")
+    if destination.is_dir():
+        destination = destination / cfg.name
     assert cfg.is_file()
     shutil.copy(pathlib.Path(cfg).resolve(), destination.resolve())
 
