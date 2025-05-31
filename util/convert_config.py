@@ -253,7 +253,7 @@ def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=Non
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
     for line in buffer.splitlines():
         indentation, code, comment = strip_line(line)
-        formatted, _, _ = format_texture_code(code, False, rotation, x_offset, y_offset, scale)
+        formatted, _, _ = format_texture_code(code, False, rotation, x_offset, y_offset, scale, inverse_texcoordscale)
         new_buffer += indentation + formatted + comment + "\n"
     return new_buffer
 
