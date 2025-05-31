@@ -83,19 +83,29 @@ def split_filename_and_prefix(filename: str) -> tuple[str, str]:
     return prefix, filename
 
 
-def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
-    # Match the texture command
+def match_texture_code(line):
+    """
+    texture_type, filename, param_list
+    """
     if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
         texture_type, filename, param_list = match.groups()
+        filename = filter_quotes(filename)
+        filename_prexif, filename = split_filename_and_prefix(filename)
+        return \
+            texture_type, \
+            filename_prexif, \
+            filename, \
+            extract_texture_parameters(param_list)
+    else:
+        return None
+
+
+def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
+    # Match the texture command
+    if (match := match_texture_code(line)) != None:
+        texture_type, filename_prexif, filename, parameters = match
     else:
         return line, False, None
-
-    # Ensure filename is enclosed in double quotes
-    filename = filter_quotes(filename)
-    filename_prexif, filename = split_filename_and_prefix(filename)
-
-    # Split remaining parameters and ensure defaults
-    parameters = extract_texture_parameters(param_list)
 
     if upscale and texture_type in env.REPLACED_TEXTURE_TYPES and not is_upscaled_texture_path(filename):
         filename = upscaled_filename_for(filename, texture_type)
@@ -184,14 +194,24 @@ def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|w
     return new_path.as_posix()
 
 
-def format_exec_code(line):
+def match_exec_code(line):
+    """
+    filename
+    """
     if match := re.match(r"exec\s+(\S+)(.*)", line):
         filename, _ = match.groups()
+        filename = filter_quotes(filename)
+        return \
+            filename
+    else:
+        return None
+
+
+def format_exec_code(line):
+    if match := match_exec_code(line):
+        filename = match
     else:
         return line
-
-    # Ensure filename is enclosed in double quotes
-    filename = filter_quotes(filename)
 
     # Modify the diffuse texture if texture type is '0'
     if "harry/upscale/" not in filename and filename.startswith("packages/"):
@@ -202,40 +222,83 @@ def format_exec_code(line):
     return formatted
 
 
-def format_texrotate_line(line):
+def match_texrotate_line(line):
+    """
+    rotation
+    """
     if match := re.match(r"texrotate\s+(\S+)(.*)", line):
         rotation, _ = match.groups()
+        rotation = int(rotation)
+        return \
+            rotation
     else:
-        return line
+        return None
+
+
+def format_texrotate_line(line):
+    if match := match_texrotate_line(line):
+        rotation = match
+    else:
+        return line, None
 
     # Reconstruct the line with updated values
     formatted = f"""texrotate {rotation}"""
-    return formatted, int(rotation)
+    return formatted, rotation
+
+
+def match_texscale_line(line):
+    """
+    scale
+    """
+    if match := re.match(r"texscale\s+(\S+)(.*)", line):
+        scale, _ = match.groups()
+        scale = int_else_float(scale)
+        return \
+            scale
+    else:
+        return None
 
 
 def format_texscale_line(line):
-    if match := re.match(r"texscale\s+(\S+)(.*)", line):
-        scale, _ = match.groups()
+    if match := match_texscale_line(line):
+        scale = match
     else:
-        return line
+        return line, None
 
     # Reconstruct the line with updated values
     formatted = f"""texscale {scale}"""
-    return formatted, float(scale)
+    return formatted, scale
+
+
+def match_texoffset_line(line):
+    """
+    x_offset, y_offset
+    """
+    if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", line):
+        x_offset, y_offset, _ = match.groups()
+        x_offset = int_else_float(x_offset)
+        y_offset = int_else_float(y_offset)
+        return \
+            x_offset, y_offset
+    elif match := re.match(r"texoffset\s+(\S+)(.*)", line):
+        x_offset, _ = match.groups()
+        x_offset = int_else_float(x_offset)
+        y_offset = int_else_float("0")
+        return \
+            x_offset, y_offset
+    else:
+        return None
 
 
 def format_texoffset_line(line):
-    if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", line):
-        x_offset, y_offset, _ = match.groups()
-    elif match := re.match(r"texoffset\s+(\S+)(.*)", line):
-        x_offset, _ = match.groups()
-        y_offset = "0"
+    if match := match_texoffset_line(line):
+        x_offset, y_offset = match
     else:
-        return line
+        return line, None, None
 
     # Reconstruct the line with updated values
     formatted = f"""texoffset {x_offset} {y_offset}"""
-    return formatted, float(x_offset), float(y_offset)
+    return formatted, x_offset, y_offset
 
 
 def format_texcoordscale(scale):
