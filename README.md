@@ -15,8 +15,8 @@ Sauerbraten is an old game, so are its textures. However, nowadays, many upscali
 
 Here are screenshots taken before and after applying the upscaled textures in the vanilla Sauerbraten client. In some places, the improvements are immediately very visible, elsewhere the improvements are more subtle.
 
-![abyss before applying upscaled textures](./demo/2025-04-06_21.11.27_abyss_coop-edit.webp)
-![abyss after applying upscaled textures](./demo/2025-04-06_21.11.49_abyss_coop-edit.webp)
+![abyss before applying upscaled textures](./demo/2025-04-06_21.11.49_abyss_coop-edit.webp)
+![abyss after applying upscaled textures](./demo/2025-04-06_21.11.27_abyss_coop-edit.webp)
 ![asenatra before applying upscaled textures](./demo/2025-04-06_21.42.48_asenatra_coop-edit.webp)
 ![asenatra after applying upscaled textures](./demo/2025-04-12_22.03.44_asenatra_coop-edit.webp)
 ![berlin_wall before applying upscaled textures](./demo/2025-04-06_21.58.55_berlin_wall_coop-edit.webp)
