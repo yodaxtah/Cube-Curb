@@ -493,17 +493,20 @@ def setup():
     # 5. process the directory
     process_directory(to_packages_path("repo"))
 
-    # 6. copy the repo base to the user base
+    # 6. copy the repository files over to the mod directory
+    copyover_directory(to_packages_path("repo"), to_packages_path("user"), True)
+
+    # 7. copy the repo base to the user base
     # default_map_settings.cfg
     copyover(to_data_path("system") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
     format_config_file(to_data_path("repo") / "default_map_settings.cfg", to_data_path("repo") / "default_map_settings.cfg")
     copyover(to_data_path("repo") / "default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
     # takeback(to_data_path("user") / "default_map_settings.cfg")
 
-    # 7. copy the repo glsl config mod to the user data
+    # 8. copy the repo glsl config mod to the user data
     copyover(to_glsl_config_path("repo"), to_glsl_config_path("user")) 
 
-    # 8. test environments
+    # 9. test environments
     test_maps()
 
 maps = ["asgard", "aard3c", "aastha", "abbey", "abyss", "academy", "access", "akaritori", "akimiski", "akroseum", "albatross", "alithia", "alloy", "antel", "anubis", "aod", "aqueducts", "arabic", "arbana", "asenatra"]
@@ -531,11 +534,12 @@ def test_each_map():
     for path in to_packages_base_path("system").glob("*.ogz"):
         if path.is_file():
             map_name = path.stem
+            file_name = path.stem + ".cfg"
             print("- ", map_name, end="\t : ")
-            if (to_packages_base_path("repo") / (path.stem + ".cfg")).is_file():
-                copyover(to_packages_base_path("repo") / map_name, to_packages_base_path("user"))
+            if (to_packages_base_path("repo") / file_name).is_file():
+                copyover(to_packages_base_path("repo") / file_name, to_packages_base_path("user"))
             input("press any key to takeback the files...")
-            if (to_packages_base_path("repo") / (path.stem + ".cfg")).is_file():
+            if (to_packages_base_path("repo") / file_name).is_file():
                 takeback(map_name)
 
 
