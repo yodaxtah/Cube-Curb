@@ -251,6 +251,8 @@ def format_shader_code(line, texcoordscale):
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
     new_buffer = ""
     # print(rotation, x_offset, y_offset, scale, repr(buffer))
+    texture_stem = None
+    # trim_texture_stem()
     for line in buffer.splitlines():
         indentation, code, comment = strip_line(line)
         formatted, _, _ = format_texture_code(code, False, rotation, x_offset, y_offset, scale, inverse_texcoordscale)
@@ -509,6 +511,9 @@ def setup():
     # 9. test environments
     test_maps()
 
+    # 10. install each map
+    test_each_map(install=True, uninstall=False)
+
 maps = ["asgard", "aard3c", "aastha", "abbey", "abyss", "academy", "access", "akaritori", "akimiski", "akroseum", "albatross", "alithia", "alloy", "antel", "anubis", "aod", "aqueducts", "arabic", "arbana", "asenatra"]
 
 
@@ -528,19 +533,26 @@ def test_maps():
     # copyover("default_map_settings.cfg", to_data_path("user") / "default_map_settings.cfg")
 
 
-def test_each_map():
+def test_each_map(install = True, uninstall = True):
     # maps = ["aastha", "bklyn"]
     print("testing packages/base:")
-    for path in to_packages_base_path("system").glob("*.ogz"):
+    for path in sorted(to_packages_base_path("system").glob("*.ogz")):
         if path.is_file():
             map_name = path.stem
             file_name = path.stem + ".cfg"
-            print("- ", map_name, end="\t : ")
-            if (to_packages_base_path("repo") / file_name).is_file():
+            if install and uninstall:
+                print("- ", map_name, end="\t : ")
+            else:
+                print(map_name, end=" ")
+            if install and (to_packages_base_path("repo") / file_name).is_file():
                 copyover(to_packages_base_path("repo") / file_name, to_packages_base_path("user"))
-            input("press any key to takeback the files...")
-            if (to_packages_base_path("repo") / file_name).is_file():
+            if install and uninstall:
+                input("press any key to takeback the files...")
+            if uninstall and (to_packages_base_path("repo") / file_name).is_file():
                 takeback(map_name)
+    print()
+
+
 
 
 def cob(cfg): return copyover(cfg + "/base")
