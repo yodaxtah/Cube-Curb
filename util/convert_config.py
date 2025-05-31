@@ -49,12 +49,18 @@ def extract_texture_parameters(param_list: str) -> list[str]:
     return tuple(float(p) for p in parameters)
 
 
+def int_else_float(value: str|float) -> int|float:
+    value = str(value)
+    if value[-2:] == ".0" or "." not in value:
+        return int(float(value))
+    else:
+        return float(value)
+
+
 def format_texture_param_list(parameters) -> str:
     param_list = ""
     for parameter in parameters:
-        param = str(float(parameter))
-        if param[-2:] == ".0":
-            param = param[:-2] # why is this necessary?
+        param = str(int_else_float(parameter)) # why is this necessary?
         param_list += " " + param
     return param_list[1:]
 
