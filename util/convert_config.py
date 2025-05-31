@@ -222,7 +222,7 @@ def format_exec_code(line):
     return formatted
 
 
-def match_texrotate_line(line):
+def match_texrotate_code(line):
     """
     rotation
     """
@@ -235,8 +235,8 @@ def match_texrotate_line(line):
         return None
 
 
-def format_texrotate_line(line):
-    if match := match_texrotate_line(line):
+def format_texrotate_code(line):
+    if match := match_texrotate_code(line):
         rotation = match
     else:
         return line, None
@@ -246,7 +246,7 @@ def format_texrotate_line(line):
     return formatted, rotation
 
 
-def match_texscale_line(line):
+def match_texscale_code(line):
     """
     scale
     """
@@ -259,8 +259,8 @@ def match_texscale_line(line):
         return None
 
 
-def format_texscale_line(line):
-    if match := match_texscale_line(line):
+def format_texscale_code(line):
+    if match := match_texscale_code(line):
         scale = match
     else:
         return line, None
@@ -270,7 +270,7 @@ def format_texscale_line(line):
     return formatted, scale
 
 
-def match_texoffset_line(line):
+def match_texoffset_code(line):
     """
     x_offset, y_offset
     """
@@ -290,8 +290,8 @@ def match_texoffset_line(line):
         return None
 
 
-def format_texoffset_line(line):
-    if match := match_texoffset_line(line):
+def format_texoffset_code(line):
+    if match := match_texoffset_code(line):
         x_offset, y_offset = match
     else:
         return line, None, None
@@ -375,13 +375,13 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                     buffer += indentation + format_texcoordscale(current_texcoordscale) + "\n"
             buffer += indentation + formatted + comment + "\n"
         elif code.startswith("texrotate "):
-            formatted, rotation = format_texrotate_line(code)
+            formatted, rotation = format_texrotate_code(code)
             buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texscale "):
-            formatted, scale = format_texscale_line(code)
+            formatted, scale = format_texscale_code(code)
             buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texoffset "):
-            formatted, x_offset, y_offset = format_texoffset_line(code)
+            formatted, x_offset, y_offset = format_texoffset_code(code)
             buffer += indentation + "// " + formatted + comment + "\n"
         elif code.startswith("texcolor "):
             buffer += line
