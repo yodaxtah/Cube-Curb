@@ -66,7 +66,7 @@ class TextureBind(CubeScriptCommand):
             scale,
         )
         self.upscale_coordscale_ratio = upscale_coordscale_ratio
-        if self.type in env.REPLACED_TEXTURE_TYPES and not is_upscaled_path(self.filename):
+        if self.type in env.REPLACED_TEXTURE_TYPES and not TextureBind.is_upscaled_path(self.filename):
             self.filename = self.upscaled_filenamed()
             self.parameters = self.upscale_parameters(self.parameters, self.upscale_coordscale_ratio)
 
@@ -75,7 +75,7 @@ class TextureBind(CubeScriptCommand):
         if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", text):
             texture_type, filename, param_list = match.groups()
             filename = filter_quotes(filename)
-            parameters: tuple[int|float, int|float, int|float, int|float] = extract_texture_parameters(param_list)
+            parameters = TextureBind.extract_texture_parameters(param_list)
             return cls(texture_type, filename, *parameters, upscale_coordscale_ratio)
         else:
             return None
@@ -134,7 +134,8 @@ class TextureBind(CubeScriptCommand):
             None if (p := parameters[3]) == None else p / upscale_coordscale_ratio,
         )
 
-    def extract_texture_parameters(self, param_list: str) -> tuple[str]:
+    @staticmethod
+    def extract_texture_parameters(param_list: str) -> tuple[int|float, int|float, int|float, int|float]:
         parameters = param_list.strip().split()
         while len(parameters) < 3:  # Ensure ROT, X, Y, SCALE are present
             parameters.append(0.0)  # Default for missing ROT, X, Y
@@ -380,12 +381,12 @@ class TextLine():
         self.__command: CubeScriptCommand|None = command
 
     @classmethod
-    def from_text(cls, text: str) -> TextLine:
+    def from_text(cls, text: str) -> "TextLine":
         indentation, command_text, comment = TextLine.__strip_line(text)
         return cls(indentation, command_text, comment)
 
     @classmethod
-    def from_command(cls, indentation: str, command: CubeScriptCommand, enabled: bool = True) -> TextLine:
+    def from_command(cls, indentation: str, command: CubeScriptCommand, enabled: bool = True) -> "TextLine":
         return cls(indentation, command.as_text, "", command, enabled)
 
     @property
