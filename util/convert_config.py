@@ -42,6 +42,36 @@ def int_else_float(value: str|float) -> int|float:
         return float(value)
 
 
+class CubeScriptCommand():
+    
+    def __init__(self) -> None:
+        # assert text != None
+        # self.text = text
+        pass
+
+    def __bool__(self) -> bool:
+        return True
+        # return self._is_valid()
+
+    def _is_valid(self) -> bool:
+        raise Exception("Not implemented")
+        # return self.text != None
+
+    def _invalidate(self) -> None:
+        raise Exception("Not implemented")
+        # self.text = None
+
+    @property
+    def as_text(self) -> str:
+        return self._to_text()
+
+    def _to_text(self) -> str:
+        return self.text
+
+    def to_line(self, indentation: str = "", enabled = True) -> "TextLine":
+        return TextLine.from_command(indentation, self, enabled)
+
+
 class TextureBind(CubeScriptCommand):
 
     __postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
@@ -200,33 +230,6 @@ class TextureBind(CubeScriptCommand):
         if not file_path.is_file():
             new_path = path
         return new_path.as_posix()
-
-
-class CubeScriptCommand():
-    
-    def __init__(self) -> None:
-        # assert text != None
-        # self.text = text
-        pass
-
-    def __bool__(self) -> bool:
-        return True
-        # return self._is_valid()
-
-    def _is_valid(self) -> bool:
-        raise Exception("Not implemented")
-        # return self.text != None
-
-    def _invalidate(self) -> None:
-        raise Exception("Not implemented")
-        # self.text = None
-
-    @property
-    def as_text(self) -> str:
-        return self._to_text()
-
-    def _to_text(self) -> str:
-        return self.text
 
 
 class TextureRotate(CubeScriptCommand):
@@ -433,6 +436,11 @@ class TextLine():
             comment = "//"
         return indentation, code, comment
 
+    def with_command(self, command: CubeScriptCommand, enabled: bool = True) -> "TextLine":
+        self.command = command
+        self.enabled = enabled
+        return self
+
 
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, upscale_coordscale_ratio=4.0):
     new_buffer = ""
@@ -461,24 +469,24 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
                 buffer, rotation, x_offset, y_offset, scale = ("", None, None, None, None)
                 if not shader_set:
                     shader_set = True
-                    buffer += text_line.indentation + SetShader("stdworld").as_text + "\n"
-                    buffer += text_line.indentation + SetShaderParam(texcoordscale).as_text + "\n"
+                    buffer += SetShader("stdworld").to_line(text_line.indentation).as_text
+                    buffer += SetShaderParam(texcoordscale).to_line(text_line.indentation).as_text
                 if command.is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer += text_line.indentation + SetShaderParam(current_texcoordscale).as_text + "\n"
+                    buffer += SetShaderParam(current_texcoordscale).to_line(text_line.indentation).as_text
                 elif not command.is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer += text_line.indentation + SetShaderParam(current_texcoordscale).as_text + "\n"
-            buffer += text_line.as_text
+                    buffer += SetShaderParam(current_texcoordscale).to_line(text_line.indentation).as_text
+            buffer += text_line.with_command(command).as_text
         elif command := TextureRotate.from_text(text_line.command_text):
-            text_line.disabled_command, rotation = command, command.rotation
-            buffer += text_line.as_text
+            rotation = command.rotation
+            buffer += text_line.with_command(command, False).as_text
         elif command := TextureScale.from_text(text_line.command_text):
-            text_line.disabled_command, scale = command, command.scale
-            buffer += text_line.as_text
+            scale = command.scale
+            buffer += text_line.with_command(command, False).as_text
         elif command := TextureOffset.from_text(text_line.command_text):
-            text_line.disabled_command, x_offset, y_offset = command, command.x_offset, command.y_offset
-            buffer += text_line.as_text
+            x_offset, y_offset = command.x_offset, command.y_offset
+            buffer += text_line.with_command(command, False).as_text
         elif command := TextureColor.from_text(text_line.command_text):
             buffer += text_line.as_text
         elif text_line.command_text == "":
@@ -489,18 +497,16 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
             if command := SetShader.from_text(text_line.command_text):
                 shader_set = True
                 current_texcoordscale = texcoordscale
-                text_line.command = command
-                output_lines += text_line.as_text
-                output_lines += text_line.indentation + SetShaderParam(texcoordscale).as_text + "\n"
+                output_lines += text_line.with_command(command).as_text
+                output_lines += SetShaderParam(texcoordscale).to_line(text_line.indentation).as_text
             elif command := TextureReset.from_text(text_line.command_text):
                 reset = True
                 shader_set = False
-                output_lines += line
-                output_lines += text_line.indentation + SetShaderParam(texcoordscale).as_text + "\n"
+                output_lines += text_line.with_command(command).as_text
+                output_lines += SetShaderParam(texcoordscale).to_line(text_line.indentation).as_text
             elif command := Execute.from_text(text_line.command_text):
                 current_texcoordscale = 1.0
-                text_line.command = command
-                output_lines += text_line.as_text
+                output_lines += text_line.with_command(command).as_text
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio=upscale_coordscale_ratio)
