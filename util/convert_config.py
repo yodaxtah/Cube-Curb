@@ -194,127 +194,181 @@ def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|w
     return new_path.as_posix()
 
 
-def match_exec_code(line):
-    """
-    filename
-    """
-    if match := re.match(r"exec\s+(\S+)(.*)", line):
-        filename, _ = match.groups()
-        filename = filter_quotes(filename)
-        return \
-            filename
-    else:
-        return None
+class CubeScriptCommand():
+    
+    def __init__(self, text: str) -> None:
+        assert text != None
+        self.text = text
+
+    def __bool__(self) -> bool:
+        return self._is_valid()
+
+    def _is_valid(self) -> bool:
+        return self.text != None
+
+    def _invalidate(self) -> None:
+        self.text = None
+
+    @property
+    def as_text(self) -> str:
+        return self._to_text()
+
+    def _to_text(self) -> str:
+        return self.text
 
 
-def format_exec_code(line):
-    if match := match_exec_code(line):
-        filename = match
-    else:
-        return line
+class TextureRotate(CubeScriptCommand):
 
-    # Modify the diffuse texture if texture type is '0'
-    if "harry/upscale/" not in filename and filename.startswith("packages/"):
-        filename = "packages/harry/upscale/" + filename[len("packages/"):]
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.rotation: int
+        if match := re.match(r"texrotate\s+(\S+)(.*)", text):
+            self.rotation, _ = match.groups()
+            self.rotation = int(self.rotation)
+        else:
+            self._invalidate()
 
-    # Reconstruct the line with updated values
-    formatted = f"""exec "{filename}\""""
-    return formatted
-
-
-def match_texrotate_code(line):
-    """
-    rotation
-    """
-    if match := re.match(r"texrotate\s+(\S+)(.*)", line):
-        rotation, _ = match.groups()
-        rotation = int(rotation)
-        return \
-            rotation
-    else:
-        return None
+    def _to_text(self) -> str:
+        return f"""texrotate {self.rotation}"""
 
 
-def format_texrotate_code(line):
-    if match := match_texrotate_code(line):
-        rotation = match
-    else:
-        return line, None
+class TextureScale(CubeScriptCommand):
 
-    # Reconstruct the line with updated values
-    formatted = f"""texrotate {rotation}"""
-    return formatted, rotation
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.scale: int
+        if match := re.match(r"texscale\s+(\S+)(.*)", text):
+            self.scale, _ = match.groups()
+            self.scale = int_else_float(self.scale)
+        else:
+            self._invalidate()
 
-
-def match_texscale_code(line):
-    """
-    scale
-    """
-    if match := re.match(r"texscale\s+(\S+)(.*)", line):
-        scale, _ = match.groups()
-        scale = int_else_float(scale)
-        return \
-            scale
-    else:
-        return None
+    def _to_text(self) -> str:
+        return f"""texscale {self.scale}"""
 
 
-def format_texscale_code(line):
-    if match := match_texscale_code(line):
-        scale = match
-    else:
-        return line, None
+class TextureOffset(CubeScriptCommand):
 
-    # Reconstruct the line with updated values
-    formatted = f"""texscale {scale}"""
-    return formatted, scale
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.x_offset: int|float
+        self.y_offset: int|float
+        if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", text):
+            self.x_offset, self.y_offset, _ = match.groups()
+            self.x_offset = int_else_float(self.x_offset)
+            self.y_offset = int_else_float(self.y_offset)
+        elif match := re.match(r"texoffset\s+(\S+)(.*)", text):
+            self.x_offset, _ = match.groups()
+            self.x_offset = int_else_float(self.x_offset)
+            self.y_offset = int_else_float("0")
+        else:
+            self._invalidate()
 
-
-def match_texoffset_code(line):
-    """
-    x_offset, y_offset
-    """
-    if match := re.match(r"texoffset\s+(\S+)\s+(\S+)(.*)", line):
-        x_offset, y_offset, _ = match.groups()
-        x_offset = int_else_float(x_offset)
-        y_offset = int_else_float(y_offset)
-        return \
-            x_offset, y_offset
-    elif match := re.match(r"texoffset\s+(\S+)(.*)", line):
-        x_offset, _ = match.groups()
-        x_offset = int_else_float(x_offset)
-        y_offset = int_else_float("0")
-        return \
-            x_offset, y_offset
-    else:
-        return None
+    def _to_text(self) -> str:
+        return f"""texoffset {self.x_offset} {self.y_offset}"""
 
 
-def format_texoffset_code(line):
-    if match := match_texoffset_code(line):
-        x_offset, y_offset = match
-    else:
-        return line, None, None
+class TextureColor(CubeScriptCommand):
 
-    # Reconstruct the line with updated values
-    formatted = f"""texoffset {x_offset} {y_offset}"""
-    return formatted, x_offset, y_offset
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        # TODO
+        if not text.startswith("texcolor "):
+            self._invalidate()
+
+    def _to_text(self) -> str:
+        return self.text # TODO
+
+
+class SetShader(CubeScriptCommand):
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.shader_name: str
+        if match := re.match(r"setshader\s+(\S+)(.*)", text):
+            self.shader_name, _ = match.groups()
+            self.shader_name = filter_quotes(self.shader_name)
+        else:
+            self._invalidate()
+
+    def _to_text(self) -> str:
+        return f"""setshader "{self.shader_name}\""""
+
+
+class TextureReset(CubeScriptCommand):
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        # TODO
+        if not text.startswith("texturereset"):
+            self._invalidate()
+
+    def _to_text(self) -> str:
+        return self.text # TODO
+
+
+class Execute(CubeScriptCommand):
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.filename: str
+        if match := re.match(r"exec\s+(\S+)(.*)", text):
+            self.filename, _ = match.groups()
+            self.filename = filter_quotes(self.filename)
+            # Modify the diffuse texture if texture type is '0'
+            if "harry/upscale/" not in self.filename and self.filename.startswith("packages/"):
+                self.filename = "packages/harry/upscale/" + self.filename[len("packages/"):]
+        else:
+            self._invalidate()
+
+    def _to_text(self) -> str:
+        return f"""exec "{self.filename}\""""
 
 
 def format_texcoordscale(scale):
     return f"""setshaderparam "texcoordscale" {scale}"""
 
 
-def format_shader_code(line, texcoordscale):
-    if match := re.match(r"setshader\s+(\S+)(.*)", line):
-        shader_name, _ = match.groups()
-    else:
-        return line
+class TextLine():
+    def __init__(self, line: str) -> None:
+        self.indentation: str
+        self.command_text: str
+        self.comment: str
+        self.enabled: bool = True
+        self.__command: CubeScriptCommand|None = None
+        self.indentation, self.command_text, self.comment = strip_line(line)
 
-    # Ensure shader_name is enclosed in double quotes
-    shader_name = filter_quotes(shader_name)
+    @property
+    def as_text(self) -> str:
+        return self.indentation \
+            + ("" if self.enabled else "// ") \
+            + (self.command.as_text if self.command else self.command_text) \
+            + self.comment \
+            + "\n"
 
-    return f"""setshader "{shader_name}\""""
+    @property
+    def as_disabled_text(self) -> str:
+        self.enabled = not self.enabled
+        text = self.as_text
+        self.enabled = not self.enabled
+        return text
+
+    @property
+    def no_text(self) -> bool:
+        return self.command_text == ""
+
+    @property
+    def command(self) -> CubeScriptCommand:
+        return self.__command
+
+    @command.setter
+    def command(self, command: CubeScriptCommand):
+        self.__command = command    
+        
+    @command.setter
+    def disabled_command(self, command: CubeScriptCommand):
+        self.enabled = False
+        self.__command = command
 
 
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
@@ -341,7 +395,7 @@ def strip_line(line):
     return indentation, code, comment
 
 
-def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
+def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
     inverse_texcoordscale = upscale_factor / texcoordscale
     buffer = ""
     output_lines = ""
@@ -353,9 +407,9 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
     reset = False
     shader_set = False
     for line in lines:
-        indentation, code, comment = strip_line(line)
-        if code.startswith("texture "):
-            formatted, new_texture, is_upscaled = format_texture_code(code, inverse_texcoordscale=inverse_texcoordscale)
+        text_line = TextLine(line)
+        if text_line.command_text.startswith("texture "):
+            formatted, new_texture, is_upscaled = format_texture_code(text_line.command_text, inverse_texcoordscale=inverse_texcoordscale)
             if new_texture:
                 output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
                 rotation = None
@@ -365,27 +419,28 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
                 buffer = ""
                 if not shader_set:
                     shader_set = True
-                    buffer += indentation + format_shader_code("setshader stdworld", texcoordscale) + "\n"
-                    buffer += indentation + format_texcoordscale(texcoordscale) + "\n"
+                    buffer += text_line.indentation + SetShader("setshader stdworld").as_text + "\n"
+                    buffer += text_line.indentation + format_texcoordscale(texcoordscale) + "\n"
                 if is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer += indentation + format_texcoordscale(current_texcoordscale) + "\n"
+                    buffer += text_line.indentation + format_texcoordscale(current_texcoordscale) + "\n"
                 elif not is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer += indentation + format_texcoordscale(current_texcoordscale) + "\n"
-            buffer += indentation + formatted + comment + "\n"
-        elif code.startswith("texrotate "):
-            formatted, rotation = format_texrotate_code(code)
-            buffer += indentation + "// " + formatted + comment + "\n"
-        elif code.startswith("texscale "):
-            formatted, scale = format_texscale_code(code)
-            buffer += indentation + "// " + formatted + comment + "\n"
-        elif code.startswith("texoffset "):
-            formatted, x_offset, y_offset = format_texoffset_code(code)
-            buffer += indentation + "// " + formatted + comment + "\n"
-        elif code.startswith("texcolor "):
-            buffer += line
-        elif code == "":
+                    buffer += text_line.indentation + format_texcoordscale(current_texcoordscale) + "\n"
+            text_line.command_text = formatted
+            buffer += text_line.as_text
+        elif command := TextureRotate(text_line.command_text):
+            text_line.disabled_command, rotation = command, command.rotation
+            buffer += text_line.as_text
+        elif command := TextureScale(text_line.command_text):
+            text_line.disabled_command, scale = command, command.scale
+            buffer += text_line.as_text
+        elif command := TextureOffset(text_line.command_text):
+            text_line.disabled_command, x_offset, y_offset = command, command.x_offset, command.y_offset
+            buffer += text_line.as_text
+        elif command := TextureColor(text_line.command_text):
+            buffer += text_line.as_text
+        elif text_line.command_text == "":
             buffer += line
         else:
             output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
@@ -394,21 +449,21 @@ def format_lines(lines, texcoordscale=4.0, upscale_factor = 4.0):
             y_offset = None
             scale = None
             buffer = ""
-            if code.startswith("setshader "):
+            if command := SetShader(text_line.command_text):
                 shader_set = True
                 current_texcoordscale = texcoordscale
-                formatted = format_shader_code(code, texcoordscale)
-                output_lines += indentation + formatted + comment + "\n"
-                output_lines += indentation + format_texcoordscale(texcoordscale) + "\n"
-            elif code.startswith("texturereset"):
+                text_line.command = command
+                output_lines += text_line.as_text
+                output_lines += text_line.indentation + format_texcoordscale(texcoordscale) + "\n"
+            elif command := TextureReset(text_line.command_text):
                 reset = True
                 shader_set = False
                 output_lines += line
-                output_lines += indentation + format_texcoordscale(texcoordscale) + "\n"
-            elif code.startswith("exec "):
+                output_lines += text_line.indentation + format_texcoordscale(texcoordscale) + "\n"
+            elif command := Execute(text_line.command_text):
                 current_texcoordscale = 1.0
-                formatted = format_exec_code(code)
-                output_lines += indentation + formatted + comment + "\n"
+                text_line.command = command
+                output_lines += text_line.as_text
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
     output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
