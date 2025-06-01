@@ -425,8 +425,9 @@ class TextLine():
         self.__command = command
 
     @staticmethod
-    def __strip_line(line):
-        parts = line.split('//', 1)
+    def __strip_line(text):
+        text = text.split('\n')[0]
+        parts = text.split('//', 1)
         code = parts[0].strip()
         indentation = parts[0] if code == "" else parts[0][:parts[0].find(code)]
         comment = f" // {parts[1].strip()}" if len(parts) > 1 else ""
