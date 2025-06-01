@@ -76,6 +76,8 @@ class TextureBind(CubeScriptCommand):
 
     __postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
 
+    # TODO: water, water2, lava, lava2, ...3?
+
     def __init__(self,
             type_: str,
             filename: str,
@@ -103,13 +105,45 @@ class TextureBind(CubeScriptCommand):
     @classmethod
     def from_text(cls, text: str, upscale_coordscale_ratio = 4.0) -> None:
         if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", text):
-            texture_type, filename, param_list = match.groups()
+            type_, filename, param_list = match.groups()
             filename = filter_quotes(filename)
             parameters = TextureBind.extract_texture_parameters(param_list)
-            return cls(texture_type, filename, *parameters, upscale_coordscale_ratio)
+            return cls(type_, filename, *parameters, upscale_coordscale_ratio)
         else:
             return None
 
+    @property
+    def rotation(self) -> int:
+        return self.rotation
+
+    @rotation.setter
+    def rotation(self, rotation) -> None:
+        self.parameters = self.parameters[:0] + (rotation,) + self.parameters[1:]
+
+    @property
+    def x_offset(self) -> int|float:
+        return self.x_offset
+
+    @x_offset.setter
+    def x_offset(self, x_offset) -> None:
+        self.parameters = self.parameters[:1] + (x_offset * self.upscale_coordscale_ratio,) + self.parameters[2:]
+
+    @property
+    def y_offset(self) -> int|float:
+        return self.y_offset
+
+    @y_offset.setter
+    def y_offset(self, y_offset) -> None:
+        self.parameters = self.parameters[:2] + (y_offset * self.upscale_coordscale_ratio,) + self.parameters[3:]
+
+    @property
+    def scale(self) -> int|float:
+        return self.scale
+
+    @scale.setter
+    def scale(self, scale) -> None:
+        self.parameters = self.parameters[:3] + (scale / self.upscale_coordscale_ratio,) + self.parameters[4:]
+        
     @staticmethod
     def split_filename_and_prefix(filename: str) -> tuple[str, str]:
         prefix = ""
@@ -154,7 +188,10 @@ class TextureBind(CubeScriptCommand):
         return param_list[1:]
 
     def _to_text(self) -> str:
-        return f"""texture {self.type} "{self.filename_prexif}{self.filename}" {self.__parameters_to_text()}"""
+        text = f"""texture {self.type} "{self.filename_prexif}{self.filename}\""""
+        if self.is_primary:
+            text += " " + self.__parameters_to_text()
+        return text
 
     def upscale_parameters(self, parameters: tuple, upscale_coordscale_ratio: float) -> tuple:
         return (
@@ -309,6 +346,119 @@ class TextureColor(CubeScriptCommand):
         return self.text # TODO
 
 
+class TextureAlpha(CubeScriptCommand):
+
+    def __init__(self, front_face: int|float, back_face: int|float) -> None:
+        super().__init__()
+        self.front_face: int|float = front_face
+        self.back_face: int|float = back_face
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if text.startswith("texalpha "):
+            return cls(0, 0) # TODO
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return self.text # TODO
+
+
+class TextureScroll(CubeScriptCommand):
+
+    def __init__(self, x_scroll: int|float, y_scroll: int|float) -> None:
+        super().__init__()
+        self.x_scroll: int|float = x_scroll
+        self.y_scroll: int|float = y_scroll
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if match := re.match(r"texscroll\s+(\S+)\s+(\S+)(.*)", text):
+            x_scroll, y_scroll, _ = match.groups()
+            return cls(int_else_float(x_scroll), int_else_float(y_scroll))
+        elif match := re.match(r"texscroll\s+(\S+)(.*)", text):
+            x_scroll, _ = match.groups()
+            return cls(int_else_float(x_scroll), int_else_float("0"))
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return f"""texscroll {self.x_offset} {self.y_offset}"""
+
+
+class TextureAutoGrass(CubeScriptCommand):
+
+    def __init__(self, shader_name: str) -> None:
+        super().__init__()
+        self.shader_name: str = shader_name
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if match := re.match(r"autograss\s+(\S+)(.*)", text):
+            shader_name, _ = match.groups()
+            return cls(filter_quotes(shader_name))
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return f"""autograss "{self.shader_name}\""""
+
+
+class TextureGrassColor(CubeScriptCommand):
+
+    def __init__(self, channel_R: int|float, channel_G: int|float, channel_B: int|float) -> None:
+        super().__init__()
+        self.channel_R: int|float = channel_R
+        self.channel_G: int|float = channel_G
+        self.channel_B: int|float = channel_B
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if text.startswith("grasscolour "):
+            return cls(0, 0, 0) # TODO
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return self.text # TODO
+
+
+class TextureGrassAlpha(CubeScriptCommand):
+
+    def __init__(self, front_face: int|float, back_face: int|float) -> None:
+        super().__init__()
+        self.front_face: int|float = front_face
+        self.back_face: int|float = back_face
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if text.startswith("grassalpha "):
+            return cls(0, 0) # TODO
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return self.text # TODO
+
+
+class TextureGrassScale(CubeScriptCommand):
+
+    def __init__(self, scale: int|float) -> None:
+        super().__init__()
+        self.scale: int = scale
+
+    @classmethod
+    def from_text(cls, text: str) -> None:
+        if match := re.match(r"grassscale\s+(\S+)(.*)", text):
+            scale, _ = match.groups()
+            return cls(int_else_float(scale))
+        else:
+            return None
+
+    def _to_text(self) -> str:
+        return f"""grassscale {self.scale}"""
+
+
 class SetShader(CubeScriptCommand):
 
     def __init__(self, shader_name: str) -> None:
@@ -443,20 +593,36 @@ class TextLine():
         return self
 
 
-def modify_buffer(buffer: list, rotation=None, x_offset=None, y_offset=None, scale=None, upscale_coordscale_ratio=4.0):
-    # TODO: extract parameters here
+def modify_buffer(buffer: list[TextLine]):
+    import __main__
     new_buffer = []
+    primary: TextureBind|None = None
+    bound_types = set()
     for text_line in buffer:
-        if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
-            command.overwrite_parameters(rotation, x_offset, y_offset, scale)
-            text_line.command = command
+        match type(text_line.command):
+            case __main__.TextureBind:
+                bound_types.add(text_line.command.type)
+                if primary == None:
+                    primary = text_line.command
+            case __main__.TextureRotate:
+                assert primary
+                primary.rotation = text_line.command.rotation
+                text_line.enabled = False
+            case __main__.TextureOffset:
+                assert primary
+                primary.x_offset, primary.y_offset = text_line.command.x_offset, text_line.command.y_offset
+                text_line.enabled = False
+            case __main__.TextureScale:
+                assert primary
+                primary.scale = text_line.command.scale
+                text_line.enabled = False
         new_buffer.append(text_line)
     return new_buffer
 
 
 def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
     upscale_coordscale_ratio = upscale_factor / texcoordscale
-    buffer, rotation, x_offset, y_offset, scale = [], None, None, None, None
+    buffer = []
     output_lines = []
     current_texcoordscale = texcoordscale
     reset = False
@@ -466,8 +632,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
             text_line.command = command
             if command.is_primary:
-                output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio)
-                buffer, rotation, x_offset, y_offset, scale = ([], None, None, None, None)
+                output_lines += modify_buffer(buffer)
+                buffer = []
                 if not shader_set:
                     shader_set = True
                     buffer.append(SetShader("stdworld").to_line(text_line.indentation))
@@ -480,21 +646,30 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
                     buffer.append(SetShaderParam(current_texcoordscale).to_line(text_line.indentation))
             buffer.append(text_line.with_command(command))
         elif command := TextureRotate.from_text(text_line.command_text):
-            rotation = command.rotation
-            buffer.append(text_line.with_command(command, False))
+            buffer.append(text_line.with_command(command))
         elif command := TextureScale.from_text(text_line.command_text):
-            scale = command.scale
-            buffer.append(text_line.with_command(command, False))
+            buffer.append(text_line.with_command(command))
         elif command := TextureOffset.from_text(text_line.command_text):
-            x_offset, y_offset = command.x_offset, command.y_offset
-            buffer.append(text_line.with_command(command, False))
+            buffer.append(text_line.with_command(command))
         elif command := TextureColor.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureAlpha.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureScroll.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureAutoGrass.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureGrassScale.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureGrassColor.from_text(text_line.command_text):
+            buffer.append(text_line)
+        elif command := TextureGrassAlpha.from_text(text_line.command_text):
             buffer.append(text_line)
         elif text_line.no_command:
             buffer.append(text_line)
         else:
-            output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio=upscale_coordscale_ratio)
-            buffer, rotation, x_offset, y_offset, scale = ([], None, None, None, None)
+            output_lines += modify_buffer(buffer)
+            buffer = []
             if command := SetShader.from_text(text_line.command_text):
                 shader_set = True
                 current_texcoordscale = texcoordscale
@@ -510,8 +685,7 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
                 output_lines.append(text_line.with_command(command))
             else:
                 output_lines.append(text_line)
-    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio=upscale_coordscale_ratio)
-    buffer, rotation, x_offset, y_offset, scale = ([], None, None, None, None)
+    output_lines += modify_buffer(buffer)
     output_lines.append(SetShaderParam(1.0).to_line())
     if not reset:
         output_lines = [SetShaderParam(texcoordscale).to_line()] + output_lines
@@ -660,6 +834,10 @@ def setup():
     with fileinput.FileInput(paradigm, inplace=True) as file:
         for line in file:
             print(line.replace("32s", "32"), end="")
+    conflict = to_packages_base_path("repo") / "conflict.cfg"
+    with fileinput.FileInput(conflict, inplace=True) as file:
+        for line in file:
+            print(line.replace("0texturereset", "0\n// texturereset"), end="")
 
     # 5. process the directory
     process_directory(to_packages_path("repo"))
