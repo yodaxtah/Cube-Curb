@@ -26,27 +26,12 @@ def reload_environment_variables():
 env = reload_environment_variables()
 
 
-def is_upscaled_texture_path(filename: str) -> bool:
-    return "harry" in filename \
-        and "upscale" in filename \
-        and "_diffuse" in filename
-
-
 def filter_quotes(string: str) -> str:
     if string.startswith('"'):
         string = string[1:]
     if string.endswith('"'):
         string = string[:-1]
     return string
-
-
-def extract_texture_parameters(param_list: str) -> list[str]:
-    parameters = param_list.strip().split()
-    while len(parameters) < 3:  # Ensure ROT, X, Y, SCALE are present
-        parameters.append(0.0)  # Default for missing ROT, X, Y
-    if len(parameters) < 4:
-        parameters.append(1.0)  # Default SCALE value
-    return tuple(float(p) for p in parameters)
 
 
 def int_else_float(value: str|float) -> int|float:
@@ -57,141 +42,147 @@ def int_else_float(value: str|float) -> int|float:
         return float(value)
 
 
-def format_texture_param_list(parameters) -> str:
-    param_list = ""
-    for parameter in parameters:
-        param = str(int_else_float(parameter)) # why is this necessary?
-        param_list += " " + param
-    return param_list[1:]
+class TextureBind(CubeScriptCommand):
 
+    __postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
 
-def upscale_texture_parameters(parameters: tuple, inverse_texcoordscale: float) -> tuple:
-    return (
-        None if (p := parameters[0]) == None else p,
-        None if (p := parameters[1]) == None else p * inverse_texcoordscale,
-        None if (p := parameters[2]) == None else p * inverse_texcoordscale,
-        None if (p := parameters[3]) == None else p / inverse_texcoordscale,
-    )
+    def __init__(self, text: str, upscale_coordscale_ratio = 4.0) -> None:
+        super().__init__(text)
+        self.upscale_coordscale_ratio = upscale_coordscale_ratio
+        self.texture_type: str
+        self.filename_prexif: str
+        self.filename: str
+        self.parameters: tuple[int|float, int|float, int|float, int|float]
+        if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", text):
+            self.texture_type, self.filename, param_list = match.groups()
+            self.filename = filter_quotes(self.filename)
+            self.filename_prexif, self.filename = TextureBind.split_filename_and_prefix(self.filename)
+            self.parameters = self.extract_texture_parameters(param_list)
+            if self.texture_type in env.REPLACED_TEXTURE_TYPES and not is_upscaled_path(self.filename):
+                self.filename = self.upscaled_filenamed()
+                self.parameters = self.upscale_parameters(self.parameters, self.upscale_coordscale_ratio)
+        else:
+            self._invalidate()
 
+    @staticmethod
+    def split_filename_and_prefix(filename: str) -> tuple[str, str]:
+        prefix = ""
+        if filename[:1] == "<":
+            end = filename.find(">") + 1
+            prefix = filename[0:end]
+            filename = filename[end:]
+        return prefix, filename
 
-def split_filename_and_prefix(filename: str) -> tuple[str, str]:
-    prefix = ""
-    if filename[:1] == "<":
-        end = filename.find(">") + 1
-        prefix = filename[0:end]
-        filename = filename[end:]
-    return prefix, filename
+    @staticmethod
+    def is_upscaled_path(filename: str) -> bool:
+        return "harry" in filename \
+            and "upscale" in filename \
+            and "_diffuse" in filename
 
+    @property
+    def is_upscaled(self) -> bool:
+        return TextureBind.is_upscaled_path(self.filename)
 
-def match_texture_code(line):
-    """
-    texture_type, filename, param_list
-    """
-    if match := re.match(r"texture\s+(\w+)\s+(\S+)(.*)", line):
-        texture_type, filename, param_list = match.groups()
-        filename = filter_quotes(filename)
-        filename_prexif, filename = split_filename_and_prefix(filename)
-        return \
-            texture_type, \
-            filename_prexif, \
-            filename, \
-            extract_texture_parameters(param_list)
-    else:
-        return None
+    @property
+    def is_primary(self) -> bool:
+        return self.texture_type in {"c", "0"}
 
+    @property
+    def trimmed_filestems(self) -> list[str]:
+        path = pathlib.Path(self.filename)
+        stem = path.stem
+        # if self.texture_type not in ["0", "c"] and len(parts := stem.split("_")) > 1:
+        #     __postfixes.add(parts[-1])
+        if not self.is_primary:
+            for postfix in __postfixes:
+                postfix = "_" + postfix
+                if stem[(end := -len(postfix)):] == postfix:
+                    return stem[:end]
+        return [path.stem, stem]
 
-def format_texture_code(line, upscale=True, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale = 4.0):
-    # Match the texture command
-    if (match := match_texture_code(line)) != None:
-        texture_type, filename_prexif, filename, parameters = match
-    else:
-        return line, False, None
+    def __parameters_to_text(self) -> str:
+        param_list = ""
+        for parameter in self.parameters:
+            param = str(int_else_float(parameter)) # why is this necessary?
+            param_list += " " + param
+        return param_list[1:]
 
-    if upscale and texture_type in env.REPLACED_TEXTURE_TYPES and not is_upscaled_texture_path(filename):
-        filename = upscaled_filename_for(filename, texture_type)
-        parameters = upscale_texture_parameters(parameters, inverse_texcoordscale)
+    def _to_text(self) -> str:
+        return f"""texture {self.texture_type} "{self.filename_prexif}{self.filename}" {self.__parameters_to_text()}"""
 
-    # Overwrite parameters
-    override_parameters = (rotation, x_offset, y_offset, scale)
-    if texture_type in env.REPLACED_TEXTURE_TYPES and is_upscaled_texture_path(filename):
-        override_parameters = upscale_texture_parameters(override_parameters, inverse_texcoordscale)
-    parameters = tuple(parameters[i] if (o := override_parameters[i]) == None else o for i in range(4))
+    def upscale_parameters(self, parameters: tuple, upscale_coordscale_ratio: float) -> tuple:
+        return (
+            None if (p := parameters[0]) == None else p,
+            None if (p := parameters[1]) == None else p * upscale_coordscale_ratio,
+            None if (p := parameters[2]) == None else p * upscale_coordscale_ratio,
+            None if (p := parameters[3]) == None else p / upscale_coordscale_ratio,
+        )
 
-    # Convert parameters to a string
-    param_list = format_texture_param_list(parameters)
+    def extract_texture_parameters(self, param_list: str) -> tuple[str]:
+        parameters = param_list.strip().split()
+        while len(parameters) < 3:  # Ensure ROT, X, Y, SCALE are present
+            parameters.append(0.0)  # Default for missing ROT, X, Y
+        if len(parameters) < 4:
+            parameters.append(1.0)  # Default SCALE value
+        return tuple(float(p) for p in parameters)
 
-    # Reconstruct the line with updated values
-    formatted = f"""texture {texture_type} "{filename_prexif}{filename}" {param_list}"""
-    return formatted, texture_type in {"c", "0"}, is_upscaled_texture_path(filename)
+    def overwrite_parameters(self, rotation=None, x_offset=None, y_offset=None, scale=None) -> None:
+        override_parameters = (rotation, x_offset, y_offset, scale)
+        if self.texture_type in env.REPLACED_TEXTURE_TYPES and TextureBind.is_upscaled_path(self.filename):
+            override_parameters = self.upscale_parameters(override_parameters, self.upscale_coordscale_ratio)
+        self.parameters = tuple(self.parameters[i] if (o := override_parameters[i]) == None else o for i in range(4))
 
+    def to_type_postfix(texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
+        """
+        "c" or 0 for primary diffuse texture (RGB)
+        "u" or 1 for generic secondary texture
+        "d" for decals (RGBA), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
+        "n" for normal maps (XYZ)
+        "g" for glow maps (RGB), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
+        "s" for specularity maps (grey-scale), put in alpha channel of diffuse ("c")
+        "z" for depth maps (Z), put in alpha channel of normal ("n") maps
+        "e" for environment maps (skybox), uses the same syntax as "loadsky", and set a custom environment map (overriding the "envmap" entities) to use in environment-mapped shaders ("bumpenv*world")
+        """
+        match texture_type:
+            case "c" | "0":
+                return "diffuse"
+            case "u" | "1":
+                return None
+            case "d":
+                return None
+            case "n":
+                return "normal_dx"
+            case "g":
+                return None
+            case "s":
+                return None
+            case "z":
+                return "height"
+            case "e":
+                return None
+            case _:
+                return None
 
-def to_texture_type_postfix(texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
-    """
-    "c" or 0 for primary diffuse texture (RGB)
-    "u" or 1 for generic secondary texture
-    "d" for decals (RGBA), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
-    "n" for normal maps (XYZ)
-    "g" for glow maps (RGB), blended into the diffuse texture if running in fixed-function mode. To disable this combining, specify secondary textures as generic with 1 or "u"
-    "s" for specularity maps (grey-scale), put in alpha channel of diffuse ("c")
-    "z" for depth maps (Z), put in alpha channel of normal ("n") maps
-    "e" for environment maps (skybox), uses the same syntax as "loadsky", and set a custom environment map (overriding the "envmap" entities) to use in environment-mapped shaders ("bumpenv*world")
-    """
-    match texture_type:
-        case "c" | "0":
-            return "diffuse"
-        case "u" | "1":
-            return None
-        case "d":
-            return None
-        case "n":
-            return "normal_dx"
-        case "g":
-            return None
-        case "s":
-            return None
-        case "z":
-            return "height"
-        case "e":
-            return None
-        case _:
-            return None
-
-
-# postfixes = set()
-# postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', '2', 'depth', '27', 'nm', 'z', 's', 'trnd', 'd', 'light', 'h', 'basic128', 'DISP', 'hm', '45'})
-postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
-def trim_texture_stem(stem, texture_type):
-    global postfixes
-    # if texture_type not in ["0", "c"] and len(parts := stem.split("_")) > 1:
-    #     postfixes.add(parts[-1])
-    if texture_type not in ["0", "c"]:
-        for postfix in postfixes:
-            postfix = "_" + postfix
-            if stem[(end := -len(postfix)):] == postfix:
-                return stem[:end]
-    return stem
-
-
-def upscaled_filename_for(filename: str, texture_type: "0|c|u|d|n|g|s|z|e|lava|water"):
-    """
-    Modifies the diffuse texture (texture type 0) by:
-      - Prepending "harry/upscale/" to the filestem.
-      - Appending "_diffuse" to the filestem.
-      - Appending ".png" suffix to the filestem.
-    """
-    # Extract directory, filestem, and extension
-    path = pathlib.Path(filename)
-    postfix = to_texture_type_postfix(texture_type)
-    stems = [path.stem, trim_texture_stem(path.stem, texture_type)]
-    stems.append(stems[-1] + "_d")
-    for stem in stems:
-        new_path = "harry/upscale" / path.parent / f"{stem}_{postfix}.png"
-        file_path = to_packages_path("user") / new_path
-        if file_path.is_file():
-            break
-    if not file_path.is_file():
-        new_path = path
-    return new_path.as_posix()
+    def upscaled_filenamed(self):
+        """
+        Modifies the diffuse texture (texture type 0) by:
+        - Prepending "harry/upscale/" to the filestem.
+        - Appending "_diffuse" to the filestem.
+        - Appending ".png" suffix to the filestem.
+        """
+        # Extract directory, filestem, and extension
+        path = pathlib.Path(self.filename)
+        postfix = TextureBind.to_type_postfix(self.texture_type)
+        stems = self.trimmed_filestems
+        stems.append(stems[-1] + "_d")
+        for stem in stems:
+            new_path = "harry/upscale" / path.parent / f"{stem}_{postfix}.png"
+            file_path = to_packages_path("user") / new_path
+            if file_path.is_file():
+                break
+        if not file_path.is_file():
+            new_path = path
+        return new_path.as_posix()
 
 
 class CubeScriptCommand():
@@ -336,7 +327,7 @@ class TextLine():
         self.comment: str
         self.enabled: bool = True
         self.__command: CubeScriptCommand|None = None
-        self.indentation, self.command_text, self.comment = strip_line(line)
+        self.indentation, self.command_text, self.comment = TextLine.__stripped(line)
 
     @property
     def as_text(self) -> str:
@@ -370,64 +361,54 @@ class TextLine():
         self.enabled = False
         self.__command = command
 
+    @staticmethod
+    def __stripped(line):
+        parts = line.split('//', 1)
+        code = parts[0].strip()
+        indentation = parts[0] if code == "" else parts[0][:parts[0].find(code)]
+        comment = f" // {parts[1].strip()}" if len(parts) > 1 else ""
+        if code == "":
+            comment = comment[1:]
+        if comment == "// ":
+            comment = "//"
+        return indentation, code, comment
 
-def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, inverse_texcoordscale=4.0):
+
+def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, upscale_coordscale_ratio=4.0):
     new_buffer = ""
-    # print(rotation, x_offset, y_offset, scale, repr(buffer))
-    texture_stem = None
-    # trim_texture_stem()
     for line in buffer.splitlines():
-        indentation, code, comment = strip_line(line)
-        formatted, _, _ = format_texture_code(code, False, rotation, x_offset, y_offset, scale, inverse_texcoordscale)
-        new_buffer += indentation + formatted + comment + "\n"
+        text_line = TextLine(line)
+        if command := TextureBind(text_line.command_text, upscale_coordscale_ratio):
+            command.overwrite_parameters(rotation, x_offset, y_offset, scale)
+            text_line.command = command
+        new_buffer += text_line.as_text
     return new_buffer
 
 
-def strip_line(line):
-    parts = line.split('//', 1)
-    code = parts[0].strip()
-    indentation = parts[0] if code == "" else parts[0][:parts[0].find(code)]
-    comment = f" // {parts[1].strip()}" if len(parts) > 1 else ""
-    if code == "":
-        comment = comment[1:]
-    if comment == "// ":
-        comment = "//"
-    return indentation, code, comment
-
-
 def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
-    inverse_texcoordscale = upscale_factor / texcoordscale
-    buffer = ""
+    upscale_coordscale_ratio = upscale_factor / texcoordscale
+    buffer, rotation, x_offset, y_offset, scale = "", None, None, None, None
     output_lines = ""
-    rotation = None
-    x_offset = None
-    y_offset = None
-    scale = None
     current_texcoordscale = texcoordscale
     reset = False
     shader_set = False
     for line in lines:
         text_line = TextLine(line)
-        if text_line.command_text.startswith("texture "):
-            formatted, new_texture, is_upscaled = format_texture_code(text_line.command_text, inverse_texcoordscale=inverse_texcoordscale)
-            if new_texture:
-                output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
-                rotation = None
-                x_offset = None
-                y_offset = None
-                scale = None
-                buffer = ""
+        if command := TextureBind(text_line.command_text, upscale_coordscale_ratio):
+            text_line.command = command
+            if command.is_primary:
+                output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio)
+                buffer, rotation, x_offset, y_offset, scale = ("", None, None, None, None)
                 if not shader_set:
                     shader_set = True
                     buffer += text_line.indentation + SetShader("setshader stdworld").as_text + "\n"
                     buffer += text_line.indentation + format_texcoordscale(texcoordscale) + "\n"
-                if is_upscaled and current_texcoordscale != texcoordscale:
+                if command.is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
                     buffer += text_line.indentation + format_texcoordscale(current_texcoordscale) + "\n"
-                elif not is_upscaled and current_texcoordscale == texcoordscale:
+                elif not command.is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
                     buffer += text_line.indentation + format_texcoordscale(current_texcoordscale) + "\n"
-            text_line.command_text = formatted
             buffer += text_line.as_text
         elif command := TextureRotate(text_line.command_text):
             text_line.disabled_command, rotation = command, command.rotation
@@ -443,12 +424,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
         elif text_line.command_text == "":
             buffer += line
         else:
-            output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
-            rotation = None
-            x_offset = None
-            y_offset = None
-            scale = None
-            buffer = ""
+            output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio=upscale_coordscale_ratio)
+            buffer, rotation, x_offset, y_offset, scale = ("", None, None, None, None)
             if command := SetShader(text_line.command_text):
                 shader_set = True
                 current_texcoordscale = texcoordscale
@@ -466,7 +443,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
                 output_lines += text_line.as_text
             else:
                 output_lines += line # write to buffer until next texture is read: buffer += line + "\n"
-    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, inverse_texcoordscale=inverse_texcoordscale)
+    output_lines += modify_buffer(buffer, rotation, x_offset, y_offset, scale, upscale_coordscale_ratio=upscale_coordscale_ratio)
+    buffer, rotation, x_offset, y_offset, scale = ("", None, None, None, None)
     output_lines += format_texcoordscale(1.0) + "\n"
     if not reset:
         output_lines = format_texcoordscale(texcoordscale) + "\n" + output_lines
