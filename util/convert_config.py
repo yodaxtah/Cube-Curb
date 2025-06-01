@@ -372,13 +372,21 @@ class Execute(CubeScriptCommand):
 
 
 class TextLine():
-    def __init__(self, line: str) -> None:
-        self.indentation: str
-        self.command_text: str
-        self.comment: str
-        self.enabled: bool = True
-        self.__command: CubeScriptCommand|None = None
-        self.indentation, self.command_text, self.comment = TextLine.__stripped(line)
+    def __init__(self, indentation: str, command_text: str, comment: str, command: CubeScriptCommand|None = None, enabled: bool = True) -> None:
+        self.indentation: str = indentation
+        self.command_text: str = command_text
+        self.comment: str = comment
+        self.enabled: bool = enabled
+        self.__command: CubeScriptCommand|None = command
+
+    @classmethod
+    def from_text(cls, text: str) -> TextLine:
+        indentation, command_text, comment = TextLine.__strip_line(text)
+        return cls(indentation, command_text, comment)
+
+    @classmethod
+    def from_command(cls, indentation: str, command: CubeScriptCommand, enabled: bool = True) -> TextLine:
+        return cls(indentation, command.as_text, "", command, enabled)
 
     @property
     def as_text(self) -> str:
@@ -413,7 +421,7 @@ class TextLine():
         self.__command = command
 
     @staticmethod
-    def __stripped(line):
+    def __strip_line(line):
         parts = line.split('//', 1)
         code = parts[0].strip()
         indentation = parts[0] if code == "" else parts[0][:parts[0].find(code)]
@@ -428,7 +436,7 @@ class TextLine():
 def modify_buffer(buffer, rotation=None, x_offset=None, y_offset=None, scale=None, upscale_coordscale_ratio=4.0):
     new_buffer = ""
     for line in buffer.splitlines():
-        text_line = TextLine(line)
+        text_line = TextLine.from_text(line)
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
             command.overwrite_parameters(rotation, x_offset, y_offset, scale)
             text_line.command = command
@@ -444,7 +452,7 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
     reset = False
     shader_set = False
     for line in lines:
-        text_line = TextLine(line)
+        text_line = TextLine.from_text(line)
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
             text_line.command = command
             if command.is_primary:
