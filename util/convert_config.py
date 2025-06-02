@@ -74,7 +74,9 @@ class CubeScriptCommand():
 
 class TextureBind(CubeScriptCommand):
 
-    __postfixes = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
+    __postfixes_configs = set({'NRM', 'n', 'height', 'local', 'normal', 'norm', 'depth', 'nm', 'z', 's', 'd', 'light', 'h', 'DISP', 'hm'})
+    __postfixes_upscale = set({"diffuse", "normal_dx", "height", "roughness"})
+    __postfixes = __postfixes_configs | __postfixes_upscale
 
     # TODO: water, water2, lava, lava2, ...3?
 
@@ -174,7 +176,7 @@ class TextureBind(CubeScriptCommand):
         # if self.type not in ["0", "c"] and len(parts := stem.split("_")) > 1:
         #     __postfixes.add(parts[-1])
         if not self.is_primary:
-            for postfix in __postfixes:
+            for postfix in TextureBind.__postfixes:
                 postfix = "_" + postfix
                 if stem[(end := -len(postfix)):] == postfix:
                     return stem[:end]
