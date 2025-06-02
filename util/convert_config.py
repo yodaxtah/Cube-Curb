@@ -621,8 +621,11 @@ def modify_buffer(buffer: list[TextLine]):
     import __main__
     new_buffer = []
     primary: TextureBind|None = None
+    indentation = ""
     bound_types = set()
     for text_line in buffer:
+        if not text_line.no_command:
+            indentation = text_line.indentation
         match type(text_line.command):
             case __main__.TextureBind:
                 bound_types.add(text_line.command.type)
@@ -644,9 +647,15 @@ def modify_buffer(buffer: list[TextLine]):
             for type_ in env.APPENDED_TEXTURE_TYPES:
                 if type_ not in bound_types:
                     if bind := primary.with_type(type_):
-                        new_buffer.append(bind.to_line(text_line.indentation))
+                        new_buffer.append(bind.to_line(indentation))
                     bound_types.add(type_)
         new_buffer.append(text_line)
+    if primary and len(buffer) > 0 and type(buffer[-1].command) == TextureBind:
+        for type_ in env.APPENDED_TEXTURE_TYPES:
+            if type_ not in bound_types:
+                if bind := primary.with_type(type_):
+                    new_buffer.append(bind.to_line(indentation or buffer[-1].indentation))
+                bound_types.add(type_)
     return new_buffer
 
 
