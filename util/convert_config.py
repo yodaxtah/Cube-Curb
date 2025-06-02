@@ -513,18 +513,20 @@ class SetShaderParam(CubeScriptCommand):
 
 class TextureReset(CubeScriptCommand):
 
-    def __init__(self) -> None:
+    def __init__(self, from_slot: int = 0) -> None:
         super().__init__()
+        self.from_slots: int = from_slot
 
     @classmethod
     def from_text(cls, text: str) -> None:
-        if text.startswith("texturereset"):
-            return cls()
+        if match := re.match(r"texturereset(?:\s+(\S+))?(.*)", text):
+            from_text, _ = match.groups()
+            return cls(int_else_float(from_text or 0))
         else:
             return None
 
     def _to_text(self) -> str:
-        return f"""texturereset"""
+        return f"""texturereset {self.from_slots}"""
 
 
 class Execute(CubeScriptCommand):
@@ -656,7 +658,7 @@ def modify_buffer(buffer: list[TextLine]):
                 if bind := primary.with_type(type_):
                     new_buffer.append(bind.to_line(indentation or buffer[-1].indentation))
                 bound_types.add(type_)
-    return new_buffer
+    return [] + new_buffer
 
 
 def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
