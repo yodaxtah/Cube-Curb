@@ -115,6 +115,13 @@ class TextureBind(CubeScriptCommand):
             return None
 
     @property
+    def filepath(self) -> pathlib.Path:
+        if "\\" in self.filename:
+            return pathlib.Path(pathlib.PureWindowsPath(self.filename))
+        else:
+            return pathlib.Path(self.filename)
+
+    @property
     def rotation(self) -> int:
         return self.rotation
 
@@ -257,17 +264,16 @@ class TextureBind(CubeScriptCommand):
         - Appending ".png" suffix to the filestem.
         """
         # Extract directory, filestem, and extension
-        path = pathlib.Path(self.filename)
         postfix = TextureBind.to_type_postfix(self.type)
         stems = self.trimmed_filestems
         stems.append(stems[-1] + "_d")
         for stem in stems:
-            new_path = "harry/upscale" / path.parent / f"{stem}_{postfix}.png"
+            new_path = "harry/upscale" / self.filepath.parent / f"{stem}_{postfix}.png"
             file_path = to_packages_path("user") / new_path
             if file_path.is_file():
                 break
         if not file_path.is_file():
-            new_path = path
+            new_path = self.filepath
         return new_path.as_posix()
 
 
