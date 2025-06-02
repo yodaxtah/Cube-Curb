@@ -7,6 +7,7 @@ import fileinput
 import dotenv
 import os
 import types
+import copy
 
 
 def reload_environment_variables():
@@ -100,8 +101,10 @@ class TextureBind(CubeScriptCommand):
             scale,
         )
         self.upscale_coordscale_ratio = upscale_coordscale_ratio
-        if self.type in env.REPLACED_TEXTURE_TYPES and not TextureBind.is_upscaled_path(self.filename):
-            self.filename = self.upscaled_filenamed()
+        if not self.filename:
+            pass # self._invalidate()
+        elif self.type in env.REPLACED_TEXTURE_TYPES and not TextureBind.is_upscaled_path(self.filename):
+            self.filename = self.upscaled_filename()
             self.parameters = self.upscale_parameters(self.parameters, self.upscale_coordscale_ratio)
 
     @classmethod
@@ -177,7 +180,7 @@ class TextureBind(CubeScriptCommand):
         return self.type in {"c", "0"}
 
     @property
-    def trimmed_filestems(self) -> list[str]:
+    def trimmed_filestem(self) -> list[str]:
         path = pathlib.Path(self.filename)
         stem = path.stem
         # if self.type not in ["0", "c"] and len(parts := stem.split("_")) > 1:
@@ -187,7 +190,7 @@ class TextureBind(CubeScriptCommand):
                 postfix = "_" + postfix
                 if stem[(end := -len(postfix)):] == postfix:
                     return stem[:end]
-        return [path.stem, stem]
+        return path.stem # [path.stem, stem]
 
     def __parameters_to_text(self) -> str:
         param_list = ""
@@ -256,7 +259,7 @@ class TextureBind(CubeScriptCommand):
             case _:
                 return None
 
-    def upscaled_filenamed(self):
+    def upscaled_filename(self):
         """
         Modifies the diffuse texture (texture type 0) by:
         - Prepending "harry/upscale/" to the filestem.
@@ -265,7 +268,7 @@ class TextureBind(CubeScriptCommand):
         """
         # Extract directory, filestem, and extension
         postfix = TextureBind.to_type_postfix(self.type)
-        stems = self.trimmed_filestems
+        stems = [self.trimmed_filestem]
         stems.append(stems[-1] + "_d")
         for stem in stems:
             new_path = "harry/upscale" / self.filepath.parent / f"{stem}_{postfix}.png"
@@ -275,6 +278,19 @@ class TextureBind(CubeScriptCommand):
         if not file_path.is_file():
             new_path = self.filepath
         return new_path.as_posix()
+
+    def with_type(self, type_: str):
+        if not self.filename:
+            return None
+        clone: TextureBind = copy.deepcopy(self)
+        clone.type = type_
+        stem = clone.trimmed_filestem
+        postfix = TextureBind.to_type_postfix(clone.type)
+        clone.filename = str(clone.filepath.parent / f"{stem}_{postfix}.png")
+        if (pathlib.Path(env.OVERRIDDEN_USER_MOD_PATH) / "packages" / clone.filepath).is_file():
+            return clone
+        else:
+            return None
 
 
 class TextureRotate(CubeScriptCommand):
