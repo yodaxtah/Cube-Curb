@@ -640,6 +640,12 @@ def modify_buffer(buffer: list[TextLine]):
                 assert primary
                 primary.scale = text_line.command.scale
                 text_line.enabled = False
+        if primary and type(text_line.command) != TextureBind:
+            for type_ in env.APPENDED_TEXTURE_TYPES:
+                if type_ not in bound_types:
+                    if bind := primary.with_type(type_):
+                        new_buffer.append(bind.to_line(text_line.indentation))
+                    bound_types.add(type_)
         new_buffer.append(text_line)
     return new_buffer
 
