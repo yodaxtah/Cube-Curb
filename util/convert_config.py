@@ -661,13 +661,13 @@ def modify_buffer(buffer: list[TextLine]):
     return [] + new_buffer
 
 
-def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
-    upscale_coordscale_ratio = upscale_factor / texcoordscale
-    buffer = []
-    output_lines = []
-    current_texcoordscale = texcoordscale
-    reset = False
-    shader_set = False
+def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> str:
+    upscale_coordscale_ratio: float = upscale_factor / texcoordscale
+    buffer: list[TextLine] = []
+    output_lines: list[TextLine] = []
+    current_texcoordscale: float = texcoordscale
+    reset: bool = False
+    set_shader: SetShader|None = None
     for line in lines:
         text_line = TextLine.from_text(line)
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
@@ -675,9 +675,9 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
             if command.is_primary:
                 output_lines += modify_buffer(buffer)
                 buffer = []
-                if not shader_set:
-                    shader_set = True
-                    buffer.append(SetShader("stdworld").to_line(text_line.indentation))
+                if not set_shader:
+                    set_shader = SetShader("stdworld")
+                    buffer.append(set_shader.to_line(text_line.indentation))
                     buffer.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
                 if command.is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
@@ -712,13 +712,13 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0):
             output_lines += modify_buffer(buffer)
             buffer = []
             if command := SetShader.from_text(text_line.command_text):
-                shader_set = True
+                set_shader = command
                 current_texcoordscale = texcoordscale
                 output_lines.append(text_line.with_command(command))
                 output_lines.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
             elif command := TextureReset.from_text(text_line.command_text):
                 reset = True
-                shader_set = False
+                set_shader = None
                 output_lines.append(text_line.with_command(command))
                 output_lines.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
             elif command := Execute.from_text(text_line.command_text):
