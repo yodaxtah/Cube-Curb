@@ -503,12 +503,25 @@ class SetShader(CubeScriptCommand):
 
 class SetShaderParam(CubeScriptCommand):
 
-    def __init__(self, scale: int|float):
+    def __init__(self, param_name: str, param_raw_value: str = ""):
         super().__init__()
-        self.scale = scale
+        self.param_name: str = param_name
+        self.param_raw_value: str = param_raw_value
+
+    @classmethod
+    def from_text(cls, text: str) -> "SetShaderParam":
+        if match := re.match(r"setshaderparam\s+(\S+)\s(.*)", text):
+            param_name, param_raw_value = match.groups()
+            return cls(filter_quotes(param_name), param_raw_value)
+        else:
+            return None
+
+    @classmethod
+    def TexCoordScale(cls, value: int|float) -> "SetShaderParam":
+        return cls("texcoordscale", str(value))
 
     def _to_text(self) -> str:
-        return f"""setshaderparam "texcoordscale" {self.scale}"""
+        return f"""setshaderparam "{self.param_name}" {self.param_raw_value}"""
 
 
 class TextureReset(CubeScriptCommand):
@@ -676,14 +689,14 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
                 output_lines += modify_buffer(buffer)
                 buffer = []
                 if not set_shader:
-                    set_shader = [SetShader("stdworld"), SetShaderParam(texcoordscale)]
+                    set_shader = [SetShader("stdworld"), SetShaderParam.TexCoordScale(texcoordscale)]
                     buffer += [c.to_line(text_line.indentation) for c in set_shader]
                 if command.is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
-                    buffer.append(SetShaderParam(current_texcoordscale).to_line(text_line.indentation))
+                    buffer.append(SetShaderParam.TexCoordScale(current_texcoordscale).to_line(text_line.indentation))
                 elif not command.is_upscaled and current_texcoordscale == texcoordscale:
                     current_texcoordscale = 1.0
-                    buffer.append(SetShaderParam(current_texcoordscale).to_line(text_line.indentation))
+                    buffer.append(SetShaderParam.TexCoordScale(current_texcoordscale).to_line(text_line.indentation))
             buffer.append(text_line.with_command(command))
         elif command := TextureRotate.from_text(text_line.command_text):
             buffer.append(text_line.with_command(command))
@@ -712,22 +725,22 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
             buffer = []
             if command := SetShader.from_text(text_line.command_text):
                 current_texcoordscale = texcoordscale
-                set_shader = [command, SetShaderParam(texcoordscale)]
+                set_shader = [command, SetShaderParam.TexCoordScale(texcoordscale)]
                 output_lines += [text_line.with_command(command), set_shader[1].to_line(text_line.indentation)]
             elif command := TextureReset.from_text(text_line.command_text):
                 reset = True
                 set_shader = None
                 output_lines.append(text_line.with_command(command))
-                output_lines.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
+                output_lines.append(SetShaderParam.TexCoordScale(texcoordscale).to_line(text_line.indentation))
             elif command := Execute.from_text(text_line.command_text):
                 current_texcoordscale = 1.0
                 output_lines.append(text_line.with_command(command))
             else:
                 output_lines.append(text_line)
     output_lines += modify_buffer(buffer)
-    output_lines.append(SetShaderParam(1.0).to_line())
+    output_lines.append(SetShaderParam.TexCoordScale(1.0).to_line())
     if not reset:
-        output_lines = [SetShaderParam(texcoordscale).to_line()] + output_lines
+        output_lines = [SetShaderParam.TexCoordScale(texcoordscale).to_line()] + output_lines
     return "".join(l.as_text for l in output_lines)
 
 
