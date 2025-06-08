@@ -667,7 +667,7 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
     output_lines: list[TextLine] = []
     current_texcoordscale: float = texcoordscale
     reset: bool = False
-    set_shader: SetShader|None = None
+    set_shader: list[SetShader|SetShaderParam] = []
     for line in lines:
         text_line = TextLine.from_text(line)
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
@@ -676,9 +676,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
                 output_lines += modify_buffer(buffer)
                 buffer = []
                 if not set_shader:
-                    set_shader = SetShader("stdworld")
-                    buffer.append(set_shader.to_line(text_line.indentation))
-                    buffer.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
+                    set_shader = [SetShader("stdworld"), SetShaderParam(texcoordscale)]
+                    buffer += [c.to_line(text_line.indentation) for c in set_shader]
                 if command.is_upscaled and current_texcoordscale != texcoordscale:
                     current_texcoordscale = texcoordscale
                     buffer.append(SetShaderParam(current_texcoordscale).to_line(text_line.indentation))
@@ -712,10 +711,9 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
             output_lines += modify_buffer(buffer)
             buffer = []
             if command := SetShader.from_text(text_line.command_text):
-                set_shader = command
                 current_texcoordscale = texcoordscale
-                output_lines.append(text_line.with_command(command))
-                output_lines.append(SetShaderParam(texcoordscale).to_line(text_line.indentation))
+                set_shader = [command, SetShaderParam(texcoordscale)]
+                output_lines += [text_line.with_command(command), set_shader[1].to_line(text_line.indentation)]
             elif command := TextureReset.from_text(text_line.command_text):
                 reset = True
                 set_shader = None
