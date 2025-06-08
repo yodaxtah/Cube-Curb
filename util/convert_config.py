@@ -118,6 +118,16 @@ class TextureBind(CubeScriptCommand):
             return None
 
     @property
+    def character_type(self) -> str:
+        match self.type:
+            case "0":
+                return "c"
+            case "1":
+                return "u"
+            case _:
+                return self.type
+
+    @property
     def filepath(self) -> pathlib.Path:
         if "\\" in self.filename:
             return pathlib.Path(pathlib.PureWindowsPath(self.filename))
@@ -485,17 +495,59 @@ class TextureGrassScale(CubeScriptCommand):
 
 class SetShader(CubeScriptCommand):
 
-    def __init__(self, shader_name: str) -> None:
+    def __init__(self, shader_name: str, constant_specularity: bool = False, environment: bool = False) -> None:
         super().__init__()
-        self.shader_name: str = shader_name
+        self.constant_specularity: bool = constant_specularity
+        self.environment: bool = environment # bump environment
+        self.shader_name = shader_name
 
     @classmethod
-    def from_text(cls, text: str) -> None:
+    def from_text(cls, text: str) -> "SetShader":
         if match := re.match(r"setshader\s+(\S+)(.*)", text):
             shader_name, _ = match.groups()
             return cls(filter_quotes(shader_name))
         else:
             return None
+
+    @property
+    def shader_name(self) -> str:
+        name = self.__shader_name
+        if name[:4] == "bump":
+            if self.constant_specularity:
+                name = "bump" + "spec" + name[4:]
+            if self.environment:
+                name = "bump" + "env" + name[4:]
+        return name
+
+    @shader_name.setter
+    def shader_name(self, shader_name: str) -> str:
+        if shader_name[:7] == "bumpenv":
+            shader_name = "bump" + shader_name[7:]
+            self.environment = True
+        if shader_name[:8] == "bumpspec":
+            shader_name = "bump" + shader_name[8:]
+            self.constant_specularity = True
+        self.__shader_name = shader_name            
+
+    @classmethod
+    def from_types(cls, types: set[str], constant_specularity: bool = False, environment: bool = False) -> "SetShader":
+        match types:
+            case _ if types == {"c"}:                     return cls("stdworld", False)                                    # The default lightmapped world shader.
+            case _ if types == {"c", "d"}:                return cls("decalworld", False)                                  # Like stdworld, except alpha blends decal texture on diffuse texture.
+            case _ if types == {"c", "g"}:                return cls("glowworld", False)                                   # Like stdworld, except adds light from glow map.
+            case _ if types == {"c", "n"}:                return cls("bumpworld", False)                                   # Normal-mapped shader without specularity (diffuse lighting only).
+            # case _ if types == {"c", "n"}:                return cls("bumpspecworld", True)                              # Normal-mapped shader with constant specularity factor.
+            case _ if types == {"c", "n", "g"}:           return cls("bumpglowworld", constant_specularity)                # Normal-mapped shader with glow map and without specularity.
+            # case _ if types == {"c", "n", "g"}:           return cls("bumpspecglowworld", True)                          # Normal-mapped shader with constant specularity factor and glow map.
+            case _ if types == {"c", "n", "s"}:           return cls("bumpspecmapworld", constant_specularity)             # Normal-mapped shader with specularity map.
+            case _ if types == {"c", "n", "s", "g"}:      return cls("bumpspecmapglowworld", False)                        # Normal-mapped shader with specularity map and glow map.
+            case _ if types == {"c", "n", "z"}:           return cls("bumpparallaxworld", False)                           # Normal-mapped shader with height map and without specularity.
+            # case _ if types == {"c", "n", "z"}:           return cls("bumpspecparallaxworld", True)                      # Normal-mapped shader with constant specularity factor and height map.
+            case _ if types == {"c", "n", "s", "z"}:      return cls("bumpspecmapparallaxworld", constant_specularity)     # Normal-mapped shader with specularity map and height map.
+            case _ if types == {"c", "n", "z", "g"}:      return cls("bumpparallaxglowworld", False)                       # Normal-mapped shader with height and glow maps, and without specularity.
+            # case _ if types == {"c", "n", "z", "g"}:      return cls("bumpspecparallaxglowworld", True)                  # Normal-mapped shader with constant specularity factor, and height and glow maps.
+            case _ if types == {"c", "n", "s", "z", "g"}: return cls("bumpspecmapparallaxglowworld", constant_specularity) # Normal-mapped shader with specularity, height, and glow maps.
+        raise Exception(f"Types {repr(types)} didn't match")
 
     def _to_text(self) -> str:
         return f"""setshader "{self.shader_name}\""""
@@ -606,7 +658,7 @@ class TextLine():
 
     @command.setter
     def command(self, command: CubeScriptCommand):
-        self.__command = command    
+        self.__command = command
 
     @command.setter
     def disabled_command(self, command: CubeScriptCommand):
@@ -632,7 +684,37 @@ class TextLine():
         return self
 
 
-def modify_buffer(buffer: list[TextLine]):
+def find_shader(buffer: list[CubeScriptCommand]) -> tuple[SetShader|None, int]:
+    for i in range(len(buffer)):
+        if type(buffer[i]) == SetShader:
+            return buffer[i], i
+    else:
+        return None, None
+
+
+def with_modified_shader(texture_buffer: list[TextLine], shader_buffer: list[SetShader|SetShaderParam], bound_types: set, indentation: str = ""):
+    if shader_buffer and bound_types:
+        new_buffer = texture_buffer[:]
+        new_shader_buffer = shader_buffer[:]
+        set_shader, set_shader_index = find_shader(shader_buffer)
+        if set_shader:
+            needed_shader = SetShader.from_types(bound_types, set_shader.constant_specularity)
+            if set_shader.shader_name != needed_shader.shader_name:
+                new_shader_buffer = shader_buffer[:set_shader_index] + [needed_shader] + shader_buffer[set_shader_index + 1:]
+                set_shader, set_shader_index = find_shader(texture_buffer)
+                shader_lines = [c.to_line(indentation) for c in new_shader_buffer]
+                if set_shader:
+                    new_buffer = texture_buffer[:set_shader_index] + shader_lines + texture_buffer[set_shader_index + 1:]
+                else:
+                    new_buffer = [c.to_line(indentation) for c in new_shader_buffer] + texture_buffer
+        return new_buffer, new_shader_buffer
+    else:
+        return texture_buffer, shader_buffer
+
+
+def modify_buffer(buffer: list[TextLine], shader_buffer: list[SetShader|SetShaderParam]):
+    if shader_buffer and (set_shader := find_shader(shader_buffer)[0]) and set_shader.shader_name == "envworld":
+        return buffer, shader_buffer
     import __main__
     new_buffer = []
     primary: TextureBind|None = None
@@ -643,7 +725,10 @@ def modify_buffer(buffer: list[TextLine]):
             indentation = text_line.indentation
         match type(text_line.command):
             case __main__.TextureBind:
-                bound_types.add(text_line.command.type)
+                if len(character_type := text_line.command.character_type) > 1:
+                    return buffer, shader_buffer
+                elif character_type in {"c", "n", "s", "z", "g"}:
+                    bound_types.add(character_type)
                 if primary == None:
                     primary = text_line.command
             case __main__.TextureRotate:
@@ -671,7 +756,9 @@ def modify_buffer(buffer: list[TextLine]):
                 if bind := primary.with_type(type_):
                     new_buffer.append(bind.to_line(indentation or buffer[-1].indentation))
                 bound_types.add(type_)
-    return [] + new_buffer
+    new_buffer, shader_buffer = with_modified_shader(new_buffer, shader_buffer, bound_types, indentation)
+    # new_buffer = [TextLine.from_text("// start")] + new_buffer + [TextLine.from_text("// stop")]
+    return new_buffer, shader_buffer
 
 
 def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> str:
@@ -686,7 +773,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
         if command := TextureBind.from_text(text_line.command_text, upscale_coordscale_ratio):
             text_line.command = command
             if command.is_primary:
-                output_lines += modify_buffer(buffer)
+                buffer, set_shader = modify_buffer(buffer, set_shader)
+                output_lines += buffer
                 buffer = []
                 if not set_shader:
                     set_shader = [SetShader("stdworld"), SetShaderParam.TexCoordScale(texcoordscale)]
@@ -721,12 +809,16 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
         elif text_line.no_command:
             buffer.append(text_line)
         else:
-            output_lines += modify_buffer(buffer)
+            buffer, set_shader = modify_buffer(buffer, set_shader)
+            output_lines += buffer
             buffer = []
             if command := SetShader.from_text(text_line.command_text):
                 current_texcoordscale = texcoordscale
                 set_shader = [command, SetShaderParam.TexCoordScale(texcoordscale)]
                 output_lines += [text_line.with_command(command), set_shader[1].to_line(text_line.indentation)]
+            elif command := SetShaderParam.from_text(text_line.command_text):
+                output_lines.append(text_line.with_command(command))
+                set_shader.append(command)
             elif command := TextureReset.from_text(text_line.command_text):
                 reset = True
                 set_shader = None
@@ -737,7 +829,8 @@ def format_lines(lines: list[str], texcoordscale=4.0, upscale_factor = 4.0) -> s
                 output_lines.append(text_line.with_command(command))
             else:
                 output_lines.append(text_line)
-    output_lines += modify_buffer(buffer)
+    buffer, set_shader = modify_buffer(buffer, set_shader)
+    output_lines += buffer
     output_lines.append(SetShaderParam.TexCoordScale(1.0).to_line())
     if not reset:
         output_lines = [SetShaderParam.TexCoordScale(texcoordscale).to_line()] + output_lines
